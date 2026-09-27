@@ -19,6 +19,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -32,6 +33,15 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local mock media uploads
+/public/uploads/**
+!/public/uploads/
+!/public/uploads/.gitkeep
+
+# archive prototype
+/_archive_vite_prototype/
 
 # vercel
 .vercel

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <rect width="48" height="48" rx="12" fill="#0E363D"/>
+  <!-- Interlocking rings & aperture element -->
+  <circle cx="21" cy="24" r="10" stroke="#3AA7B4" stroke-width="2.5" opacity="0.85"/>
+  <circle cx="27" cy="24" r="10" stroke="#E7BEB1" stroke-width="2.5" opacity="0.85"/>
+  <!-- Center focal spark -->
+  <circle cx="24" cy="24" r="3" fill="#FAF7F2"/>
+</svg>

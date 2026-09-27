@@ -1,0 +1,14 @@
+import bcrypt from 'bcryptjs';
+
+// Re-export Edge-safe token utilities and types
+export * from './tokens';
+
+// Password hashing & verification (Node.js runtime only)
+export async function hashPassword(password: string): Promise<string> {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+}
+
+export async function comparePassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
