@@ -28,13 +28,11 @@ A living design system showcase is available during development:
 
 ## Tech Stack
 
-- **Framework**: React 18 + TypeScript + Vite
-- **Styling**: Tailwind CSS with bespoke EverLens design tokens (Teal, Ivory Canvas, Slate, Dusty Salmon)
-- **Typography**: Cormorant Garamond, Playfair Display, Plus Jakarta Sans, Alex Brush
-- **Animation**: Framer Motion
-- **Icons**: Lucide Icons
-- **Forms & Validation**: React Hook Form + Zod
-- **Routing**: React Router v6
+- **Framework**: Next.js 15 (App Router) + React 18 + TypeScript
+- **Database**: MongoDB (Atlas) with Mongoose
+- **Object Storage**: Cloudflare R2 (Private S3-compatible, presigned URLs only)
+- **Styling**: Tailwind CSS with bespoke EverLens design tokens
+- **Security**: Strict CORS Lockdown, Magic Byte verification, Audit Logging, Auth Rate Limiting, Dependabot
 
 ---
 
@@ -52,4 +50,13 @@ npm run typecheck
 
 # Build for production
 npm run build
+
+# Run automated MongoDB database backup
+npm run db:backup
 ```
+
+---
+
+## Disaster Recovery & Backups
+
+For step-by-step restoration procedures for MongoDB and Cloudflare R2 media assets, consult the [Disaster Recovery Runbook](docs/BACKUP_AND_RESTORE.md).

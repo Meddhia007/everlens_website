@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
         publicMedia.map(async (item: any) => {
           let mediaUrl = '';
           try {
-            mediaUrl = await getPresignedDownloadUrl(item.r2Key, 86400);
+            // Short-lived signed URL for public portfolio viewing (1 hour expiry)
+            mediaUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
           } catch {
             mediaUrl = '';
           }

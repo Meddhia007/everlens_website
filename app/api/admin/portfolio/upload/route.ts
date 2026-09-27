@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
+import { validateMagicBytes, MAX_PHOTO_BYTES, MAX_VIDEO_BYTES } from '@/lib/upload-validator';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { handleCorsPreflight, getCorsHeaders } from '@/lib/cors';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,19 +15,12 @@ async function authenticateAdmin(request: NextRequest) {
   return verifyAdminToken(token);
 }
 
-// OPTIONS: Handle CORS preflight
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'PUT, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, x-r2-key',
-    },
-  });
+// OPTIONS: Handle CORS preflight with origin whitelist
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
 }
 
-// PUT: Direct binary upload from BulkUploader (simulates presigned R2 PUT)
+// PUT: Direct binary upload from BulkUploader (simulates presigned R2 PUT in dev)
 export async function PUT(request: NextRequest) {
   try {
     const admin = await authenticateAdmin(request);
@@ -36,10 +31,29 @@ export async function PUT(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     let key = searchParams.get('key') || request.headers.get('x-r2-key');
 
+    const buffer = Buffer.from(await request.arrayBuffer());
+
+    // 1. Server-side Magic Bytes validation
+    const validation = validateMagicBytes(buffer);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.error || 'Invalid file format detected.' },
+        { status: 400 }
+      );
+    }
+
+    // 2. Server-side Max File Size Enforcement
+    const maxAllowed = validation.type === 'video' ? MAX_VIDEO_BYTES : MAX_PHOTO_BYTES;
+    if (buffer.length > maxAllowed) {
+      const maxMb = maxAllowed / (1024 * 1024);
+      return NextResponse.json(
+        { error: `File size exceeds the ${maxMb >= 1024 ? `${maxMb / 1024}GB` : `${maxMb}MB`} limit for ${validation.type}s.` },
+        { status: 400 }
+      );
+    }
+
     if (!key) {
-      const contentType = request.headers.get('content-type') || '';
-      const isVideo = contentType.startsWith('video/');
-      const ext = isVideo ? '.mp4' : '.jpg';
+      const ext = validation.type === 'video' ? '.mp4' : '.jpg';
       key = `galleries/uploads/${Date.now()}_${crypto.randomUUID()}${ext}`;
     }
 
@@ -51,17 +65,16 @@ export async function PUT(request: NextRequest) {
     const dir = path.dirname(filePath);
 
     await mkdir(dir, { recursive: true });
-
-    const buffer = Buffer.from(await request.arrayBuffer());
     await writeFile(filePath, buffer);
 
     const etag = `"${crypto.createHash('md5').update(buffer).digest('hex')}"`;
+    const corsHeaders = getCorsHeaders(request);
 
     return new NextResponse(null, {
       status: 200,
       headers: {
         'ETag': etag,
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders,
       },
     });
   } catch (error: any) {
@@ -85,7 +98,6 @@ export async function POST(request: NextRequest) {
     const files = formData.getAll('files') as File[];
 
     if (!files || files.length === 0) {
-      // Check for single 'file'
       const singleFile = formData.get('file') as File | null;
       if (singleFile) files.push(singleFile);
     }
@@ -104,7 +116,28 @@ export async function POST(request: NextRequest) {
     const uploadedUrls: Array<{ url: string; type: 'photo' | 'video'; filename: string }> = [];
 
     for (const file of files) {
-      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
+      const buffer = Buffer.from(await file.arrayBuffer());
+
+      // 1. Server-side Magic Bytes validation
+      const validation = validateMagicBytes(buffer);
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: `File "${file.name}" rejected: ${validation.error}` },
+          { status: 400 }
+        );
+      }
+
+      // 2. Server-side Max File Size Enforcement
+      const maxAllowed = validation.type === 'video' ? MAX_VIDEO_BYTES : MAX_PHOTO_BYTES;
+      if (buffer.length > maxAllowed) {
+        const maxMb = maxAllowed / (1024 * 1024);
+        return NextResponse.json(
+          { error: `File "${file.name}" exceeds the ${maxMb >= 1024 ? `${maxMb / 1024}GB` : `${maxMb}MB`} limit.` },
+          { status: 400 }
+        );
+      }
+
+      const isVideo = validation.type === 'video';
       const targetDir = isVideo ? videosDir : imagesDir;
       const subFolder = isVideo ? 'videos' : 'images';
 
@@ -117,7 +150,6 @@ export async function POST(request: NextRequest) {
       const uniqueFilename = `${Date.now()}_${safeBasename}`;
       const filePath = path.join(targetDir, uniqueFilename);
 
-      const buffer = Buffer.from(await file.arrayBuffer());
       await writeFile(filePath, buffer);
 
       const publicUrl = `/portfolio/${subFolder}/${uniqueFilename}`;

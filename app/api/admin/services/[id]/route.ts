@@ -13,9 +13,10 @@ async function authenticateAdmin(request: NextRequest) {
 // GET: Single service
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
@@ -23,7 +24,7 @@ export async function GET(
 
     try {
       await connectToDatabase();
-      const item = await Service.findById(params.id).lean();
+      const item = await Service.findById(id).lean();
 
       if (item) {
         return NextResponse.json({
@@ -37,7 +38,7 @@ export async function GET(
       // Fall through to memoryStore
     }
 
-    const memoryItem = memoryStore.services.find((it) => it._id === params.id);
+    const memoryItem = memoryStore.services.find((it) => it._id === id);
     if (!memoryItem) {
       return NextResponse.json({ error: 'Service not found' }, { status: 404 });
     }
@@ -55,9 +56,10 @@ export async function GET(
 // PUT: Update service
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
@@ -85,7 +87,7 @@ export async function PUT(
     try {
       await connectToDatabase();
 
-      const updated = await Service.findByIdAndUpdate(params.id, updateData, {
+      const updated = await Service.findByIdAndUpdate(id, updateData, {
         new: true,
         runValidators: true,
       }).lean();
@@ -95,7 +97,7 @@ export async function PUT(
           ...(updated as any),
           _id: (updated as any)._id.toString(),
         };
-        const idx = memoryStore.services.findIndex((it) => it._id === params.id);
+        const idx = memoryStore.services.findIndex((it) => it._id === id);
         if (idx !== -1) memoryStore.services[idx] = formatted;
 
         return NextResponse.json({
@@ -108,7 +110,7 @@ export async function PUT(
     }
 
     // Update in memoryStore
-    const idx = memoryStore.services.findIndex((it) => it._id === params.id);
+    const idx = memoryStore.services.findIndex((it) => it._id === id);
     if (idx === -1) {
       return NextResponse.json({ error: 'Service not found' }, { status: 404 });
     }
@@ -135,9 +137,10 @@ export async function PUT(
 // DELETE: Delete service
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
@@ -145,12 +148,12 @@ export async function DELETE(
 
     try {
       await connectToDatabase();
-      await Service.findByIdAndDelete(params.id).lean();
+      await Service.findByIdAndDelete(id).lean();
     } catch {
       // Fall through
     }
 
-    memoryStore.services = memoryStore.services.filter((it) => it._id !== params.id);
+    memoryStore.services = memoryStore.services.filter((it) => it._id !== id);
 
     return NextResponse.json({
       success: true,

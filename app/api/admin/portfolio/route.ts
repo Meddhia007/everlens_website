@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         publicMedia.map(async (item: any) => {
           let mediaUrl = '';
           try {
-            mediaUrl = await getPresignedDownloadUrl(item.r2Key, 86400);
+            mediaUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
           } catch {
             mediaUrl = '';
           }

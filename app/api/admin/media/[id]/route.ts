@@ -15,15 +15,15 @@ async function authenticateAdmin(request: NextRequest) {
 // PATCH: Update category, portfolio status, or print note
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const { id } = params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid media ID' }, { status: 400 });
     }
@@ -72,15 +72,15 @@ export async function PATCH(
 // DELETE: Delete MediaItem from MongoDB and R2
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const { id } = params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid media ID' }, { status: 400 });
     }

@@ -4,6 +4,7 @@ import { Gallery } from '@/models/Gallery';
 import { MediaItem } from '@/models/MediaItem';
 import { PrintSelection } from '@/models/PrintSelection';
 import { verifyAdminToken, hashPassword, ADMIN_COOKIE_NAME } from '@/lib/auth';
+import { sanitizeEmail, sanitizeString, sanitizeObjectId } from '@/lib/security-sanitize';
 import mongoose from 'mongoose';
 
 async function authenticateAdmin(request: NextRequest) {
@@ -15,30 +16,31 @@ async function authenticateAdmin(request: NextRequest) {
 // GET: Fetch single gallery details
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    const cleanId = sanitizeObjectId(id);
+    if (!cleanId) {
       return NextResponse.json({ error: 'Invalid gallery ID' }, { status: 400 });
     }
 
     await connectToDatabase();
 
-    const gallery = await Gallery.findById(id).select('-passwordHash').lean();
+    const gallery = await Gallery.findById(cleanId).select('-passwordHash').lean();
     if (!gallery) {
       return NextResponse.json({ error: 'Gallery not found' }, { status: 404 });
     }
 
     // Fetch associated counts
     const [mediaCount, printSelection] = await Promise.all([
-      MediaItem.countDocuments({ galleryId: id }),
-      PrintSelection.findOne({ galleryId: id }).lean(),
+      MediaItem.countDocuments({ galleryId: cleanId }),
+      PrintSelection.findOne({ galleryId: cleanId }).lean(),
     ]);
 
     return NextResponse.json({
@@ -62,20 +64,21 @@ export async function GET(
 // PATCH: Update gallery details
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    const cleanId = sanitizeObjectId(id);
+    if (!cleanId) {
       return NextResponse.json({ error: 'Invalid gallery ID' }, { status: 400 });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const {
       coupleNames,
       weddingDate,
@@ -89,37 +92,46 @@ export async function PATCH(
 
     await connectToDatabase();
 
-    const gallery = await Gallery.findById(id);
+    const gallery = await Gallery.findById(cleanId);
     if (!gallery) {
       return NextResponse.json({ error: 'Gallery not found' }, { status: 404 });
     }
 
     // Check if clientEmail is changing and already taken
-    if (clientEmail && clientEmail.toLowerCase().trim() !== gallery.clientEmail) {
-      const existing = await Gallery.findOne({
-        clientEmail: clientEmail.toLowerCase().trim(),
-        _id: { $ne: id },
-      });
-      if (existing) {
-        return NextResponse.json(
-          { error: 'Another gallery with this client email already exists.' },
-          { status: 409 }
-        );
+    if (clientEmail !== undefined) {
+      const cleanEmail = sanitizeEmail(clientEmail);
+      if (!cleanEmail) {
+        return NextResponse.json({ error: 'Invalid client email address.' }, { status: 400 });
       }
-      gallery.clientEmail = clientEmail.toLowerCase().trim();
+      if (cleanEmail !== gallery.clientEmail) {
+        const existing = await Gallery.findOne({
+          clientEmail: cleanEmail,
+          _id: { $ne: gallery._id },
+        });
+        if (existing) {
+          return NextResponse.json(
+            { error: 'Another gallery with this client email already exists.' },
+            { status: 409 }
+          );
+        }
+        gallery.clientEmail = cleanEmail;
+      }
     }
 
-    if (coupleNames?.trim()) gallery.coupleNames = coupleNames.trim();
+    if (coupleNames !== undefined) {
+      const cleanNames = sanitizeString(coupleNames, 150);
+      if (cleanNames) gallery.coupleNames = cleanNames;
+    }
     if (weddingDate) gallery.weddingDate = new Date(weddingDate);
     if (status && ['draft', 'active', 'archived'].includes(status)) gallery.status = status;
     if (expirationDate !== undefined) {
       gallery.expirationDate = expirationDate ? new Date(expirationDate) : undefined;
     }
-    if (guestPin !== undefined) gallery.guestPin = guestPin.trim() || undefined;
-    if (guestLinkToken !== undefined) gallery.guestLinkToken = guestLinkToken.trim() || undefined;
+    if (guestPin !== undefined) gallery.guestPin = sanitizeString(guestPin, 10) || undefined;
+    if (guestLinkToken !== undefined) gallery.guestLinkToken = sanitizeString(guestLinkToken, 100) || undefined;
 
     // If new password is provided, re-hash it
-    if (newPassword && newPassword.trim()) {
+    if (newPassword && typeof newPassword === 'string' && newPassword.trim()) {
       gallery.passwordHash = await hashPassword(newPassword.trim());
     }
 
@@ -151,30 +163,31 @@ export async function PATCH(
 // DELETE: Remove gallery and associated media & print records
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    const cleanId = sanitizeObjectId(id);
+    if (!cleanId) {
       return NextResponse.json({ error: 'Invalid gallery ID' }, { status: 400 });
     }
 
     await connectToDatabase();
 
-    const deleted = await Gallery.findByIdAndDelete(id);
+    const deleted = await Gallery.findByIdAndDelete(cleanId);
     if (!deleted) {
       return NextResponse.json({ error: 'Gallery not found' }, { status: 404 });
     }
 
     // Cascade delete associated items
     await Promise.all([
-      MediaItem.deleteMany({ galleryId: id }),
-      PrintSelection.deleteMany({ galleryId: id }),
+      MediaItem.deleteMany({ galleryId: cleanId }),
+      PrintSelection.deleteMany({ galleryId: cleanId }),
     ]);
 
     return NextResponse.json({

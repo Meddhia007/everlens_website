@@ -2,28 +2,33 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { PrintSelection } from '@/models/PrintSelection';
 import { MediaItem } from '@/models/MediaItem';
-import { verifyClientToken, CLIENT_COOKIE_NAME } from '@/lib/auth';
+import { authorizeMediaAccess } from '@/lib/gallery-auth';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
 export async function PATCH(request: NextRequest) {
   try {
-    const clientToken = request.cookies.get(CLIENT_COOKIE_NAME)?.value;
-    if (!clientToken) {
-      return NextResponse.json({ error: 'Unauthorized client access' }, { status: 401 });
-    }
-
-    const session = await verifyClientToken(clientToken);
-    if (!session || !session.galleryId) {
-      return NextResponse.json({ error: 'Invalid or expired client session' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { mediaItemId, note } = body;
 
     if (!mediaItemId || !mongoose.Types.ObjectId.isValid(mediaItemId)) {
       return NextResponse.json({ error: 'Invalid media item ID' }, { status: 400 });
+    }
+
+    // Server-side authorization check: Re-verify session identity & ownership of this media item
+    const auth = await authorizeMediaAccess(request, mediaItemId);
+    if (!auth.success) {
+      return auth.response;
+    }
+
+    const { session, mediaItem } = auth;
+
+    if (session.role === 'guest') {
+      return NextResponse.json(
+        { error: 'Forbidden: Guest accounts cannot modify print notes.' },
+        { status: 403 }
+      );
     }
 
     await connectToDatabase();
@@ -37,23 +42,9 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Verify media item belongs to this gallery
-    const mediaItem = await MediaItem.findById(mediaItemId);
-    if (!mediaItem) {
-      return NextResponse.json({ error: 'Media item not found' }, { status: 404 });
-    }
-
-    if (mediaItem.galleryId.toString() !== session.galleryId) {
-      return NextResponse.json(
-        { error: 'Forbidden: Media item does not belong to your gallery' },
-        { status: 403 }
-      );
-    }
-
     // Update note on media item
     const cleanNote = typeof note === 'string' ? note.slice(0, 500) : '';
-    mediaItem.printNote = cleanNote;
-    await mediaItem.save();
+    await MediaItem.findByIdAndUpdate(mediaItemId, { printNote: cleanNote });
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export interface IGuestRateLimit extends Document {
+export interface IAuthRateLimit extends Document {
   key: string;
   attempts: number;
   lockedUntil?: Date | null;
@@ -9,7 +9,7 @@ export interface IGuestRateLimit extends Document {
   updatedAt: Date;
 }
 
-const GuestRateLimitSchema = new Schema<IGuestRateLimit>(
+const AuthRateLimitSchema = new Schema<IAuthRateLimit>(
   {
     key: {
       type: String,
@@ -28,7 +28,7 @@ const GuestRateLimitSchema = new Schema<IGuestRateLimit>(
     expireAt: {
       type: Date,
       required: true,
-      index: { expires: 0 }, // Automatically purged by MongoDB when current time reaches expireAt
+      index: { expires: 0 }, // Automatically purged by MongoDB TTL when expireAt passes
     },
   },
   {
@@ -36,8 +36,8 @@ const GuestRateLimitSchema = new Schema<IGuestRateLimit>(
   }
 );
 
-export const GuestRateLimit: Model<IGuestRateLimit> =
-  mongoose.models.GuestRateLimit ||
-  mongoose.model<IGuestRateLimit>('GuestRateLimit', GuestRateLimitSchema);
+export const AuthRateLimit: Model<IAuthRateLimit> =
+  mongoose.models.AuthRateLimit ||
+  mongoose.model<IAuthRateLimit>('AuthRateLimit', AuthRateLimitSchema);
 
-export default GuestRateLimit;
+export default AuthRateLimit;

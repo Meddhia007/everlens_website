@@ -13,13 +13,13 @@ import { PortalMediaItem } from '@/components/portal/PortalLightbox';
 import { Logo } from '@/components/Logo';
 
 interface GuestPageProps {
-  params: {
+  params: Promise<{
     token: string;
-  };
+  }>;
 }
 
 export default async function GuestPage({ params }: GuestPageProps) {
-  const { token } = params;
+  const { token } = await params;
 
   await connectToDatabase();
 
@@ -60,7 +60,7 @@ export default async function GuestPage({ params }: GuestPageProps) {
 
   // 1. PIN Protection Check
   if (gallery.guestPin) {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const guestCookie = cookieStore.get(GUEST_COOKIE_NAME)?.value;
     const guestSession = guestCookie ? await verifyGuestToken(guestCookie) : null;
 
@@ -71,7 +71,7 @@ export default async function GuestPage({ params }: GuestPageProps) {
 
     if (!isVerified) {
       // Determine client IP for initial rate limit check
-      const headersList = headers();
+      const headersList = await headers();
       const forwardedFor = headersList.get('x-forwarded-for');
       const clientIp = forwardedFor
         ? forwardedFor.split(',')[0].trim()
@@ -111,7 +111,8 @@ export default async function GuestPage({ params }: GuestPageProps) {
       rawItems.map(async (item) => {
         let viewUrl: string | null = null;
         try {
-          viewUrl = await getPresignedDownloadUrl(item.r2Key, 86400);
+          // Generate signed view URL from R2 (1 hour expiry)
+          viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
         } catch {
           viewUrl = null;
         }

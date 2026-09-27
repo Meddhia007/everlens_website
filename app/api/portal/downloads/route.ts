@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { DownloadRequest } from '@/models/DownloadRequest';
-import { verifyClientToken, CLIENT_COOKIE_NAME } from '@/lib/auth';
 import { processArchiveJob } from '@/lib/archiveWorker';
+import { authorizeGalleryAccess } from '@/lib/gallery-auth';
+import { getPresignedDownloadUrl } from '@/lib/r2';
+import { logAuditEvent } from '@/lib/audit';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const clientToken = request.cookies.get(CLIENT_COOKIE_NAME)?.value;
-    if (!clientToken) {
-      return NextResponse.json({ error: 'Unauthorized client access' }, { status: 401 });
+    const auth = await authorizeGalleryAccess(request);
+    if (!auth.success) {
+      return auth.response;
     }
 
-    const session = await verifyClientToken(clientToken);
-    if (!session || !session.galleryId) {
-      return NextResponse.json({ error: 'Invalid or expired client session' }, { status: 401 });
-    }
-
+    const { session, gallery } = auth;
     await connectToDatabase();
 
     const rawRequests = await DownloadRequest.find({
@@ -29,8 +27,12 @@ export async function GET(request: NextRequest) {
       .lean();
 
     const now = new Date();
+    const safeSlug = (session.coupleNames || gallery.coupleNames || 'everlens')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
 
-    // Map and verify expiration
+    // Map and generate fresh 15-minute signed download URLs on-demand
     const requests = await Promise.all(
       rawRequests.map(async (req) => {
         let currentStatus = req.status;
@@ -41,14 +43,23 @@ export async function GET(request: NextRequest) {
           await DownloadRequest.findByIdAndUpdate(req._id, { status: 'expired' });
         }
 
-        const sanitizedUrl = req.downloadUrl?.includes('unsplash.com')
-          ? '/api/portal/downloads/zip?type=everything'
-          : req.downloadUrl;
+        let dynamicDownloadUrl: string | undefined = undefined;
+        if (currentStatus === 'ready') {
+          if (req.r2Key) {
+            // Strictly 15-minute download signed URL generated on-demand
+            dynamicDownloadUrl = await getPresignedDownloadUrl(req.r2Key, 900, {
+              downloadFilename: `${safeSlug}_wedding_collection.zip`,
+              contentType: 'application/zip',
+            });
+          } else {
+            dynamicDownloadUrl = '/api/portal/downloads/zip?type=everything';
+          }
+        }
 
         return {
           _id: req._id.toString(),
           status: currentStatus,
-          downloadUrl: currentStatus === 'ready' ? sanitizedUrl : undefined,
+          downloadUrl: dynamicDownloadUrl,
           expiresAt: req.expiresAt ? new Date(req.expiresAt).toISOString() : undefined,
           itemCount: req.itemCount,
           requestedAt: req.requestedAt ? new Date(req.requestedAt).toISOString() : undefined,
@@ -69,16 +80,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const clientToken = request.cookies.get(CLIENT_COOKIE_NAME)?.value;
-    if (!clientToken) {
-      return NextResponse.json({ error: 'Unauthorized client access' }, { status: 401 });
+    const auth = await authorizeGalleryAccess(request);
+    if (!auth.success) {
+      return auth.response;
     }
 
-    const session = await verifyClientToken(clientToken);
-    if (!session || !session.galleryId) {
-      return NextResponse.json({ error: 'Invalid or expired client session' }, { status: 401 });
-    }
-
+    const { session, gallery } = auth;
     await connectToDatabase();
 
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
@@ -102,13 +109,24 @@ export async function POST(request: NextRequest) {
     // Enqueue a new download request
     const newRequest = await DownloadRequest.create({
       galleryId: new mongoose.Types.ObjectId(session.galleryId),
-      clientEmail: session.clientEmail,
-      coupleNames: session.coupleNames,
+      clientEmail: session.clientEmail || gallery.clientEmail,
+      coupleNames: session.coupleNames || gallery.coupleNames,
       status: 'queued',
       requestedAt: new Date(),
     });
 
     const jobId = newRequest._id.toString();
+
+    // Security audit log
+    await logAuditEvent({
+      who: session.clientEmail || gallery.clientEmail || session.sub,
+      role: session.role,
+      action: 'batch_download_request',
+      status: 'success',
+      galleryId: session.galleryId,
+      metadata: { jobId },
+      request,
+    });
 
     // Trigger asynchronous background worker without blocking the HTTP response
     setImmediate(() => {

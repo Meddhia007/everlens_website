@@ -1,20 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { PrintSelection } from '@/models/PrintSelection';
-import { verifyClientToken, CLIENT_COOKIE_NAME } from '@/lib/auth';
+import { authorizeGalleryAccess } from '@/lib/gallery-auth';
+import { logAuditEvent } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const clientToken = request.cookies.get(CLIENT_COOKIE_NAME)?.value;
-    if (!clientToken) {
-      return NextResponse.json({ error: 'Unauthorized client access' }, { status: 401 });
+    const auth = await authorizeGalleryAccess(request);
+    if (!auth.success) {
+      return auth.response;
     }
 
-    const session = await verifyClientToken(clientToken);
-    if (!session || !session.galleryId) {
-      return NextResponse.json({ error: 'Invalid or expired client session' }, { status: 401 });
+    const { session } = auth;
+    if (session.role === 'guest') {
+      return NextResponse.json(
+        { error: 'Forbidden: Guest accounts cannot submit print album selections.' },
+        { status: 403 }
+      );
     }
 
     await connectToDatabase();
@@ -51,6 +55,17 @@ export async function POST(request: NextRequest) {
     selection.locked = true;
     selection.submittedAt = new Date();
     await selection.save();
+
+    // Security audit log
+    await logAuditEvent({
+      who: session.clientEmail || session.sub,
+      role: session.role,
+      action: 'print_selection_submit',
+      status: 'success',
+      galleryId: session.galleryId,
+      metadata: { count: selection.mediaItemIds.length },
+      request,
+    });
 
     return NextResponse.json({
       success: true,

@@ -10,48 +10,36 @@ import { PassThrough, Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
+import { authorizeGalleryAccess } from '@/lib/gallery-auth';
+import { logAuditEvent } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. Authenticate Client or Admin
-    const clientToken = request.cookies.get(CLIENT_COOKIE_NAME)?.value;
-    const adminToken = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
-
-    let galleryId: string | null = null;
-    let coupleNames = 'Wedding';
-
-    if (clientToken) {
-      const session = await verifyClientToken(clientToken);
-      if (session?.galleryId) {
-        galleryId = session.galleryId;
-        coupleNames = session.coupleNames || 'Wedding';
-      }
+    // 1. Authenticate Client, Guest, or Admin via unified authorization helper
+    const targetQueryGalleryId = request.nextUrl.searchParams.get('galleryId');
+    const auth = await authorizeGalleryAccess(request, targetQueryGalleryId);
+    if (!auth.success) {
+      return auth.response;
     }
 
-    if (!galleryId && adminToken) {
-      const admin = await verifyAdminToken(adminToken);
-      if (admin) {
-        const queryGalleryId = request.nextUrl.searchParams.get('galleryId');
-        if (queryGalleryId && mongoose.Types.ObjectId.isValid(queryGalleryId)) {
-          galleryId = queryGalleryId;
-        }
-      }
-    }
-
-    if (!galleryId) {
-      return NextResponse.json({ error: 'Unauthorized access to gallery downloads' }, { status: 401 });
-    }
-
-    await connectToDatabase();
-
-    const gallery = await Gallery.findById(galleryId).lean();
-    if (gallery?.coupleNames) {
-      coupleNames = gallery.coupleNames;
-    }
+    const { session, gallery } = auth;
+    const galleryId = session.galleryId;
+    const coupleNames = gallery?.coupleNames || session.coupleNames || 'Wedding';
 
     const typeParam = request.nextUrl.searchParams.get('type') || 'photos'; // 'photos' | 'videos' | 'everything'
+
+    // Security audit log
+    await logAuditEvent({
+      who: session.clientEmail || session.sub,
+      role: session.role,
+      action: 'zip_download',
+      status: 'success',
+      galleryId,
+      metadata: { type: typeParam },
+      request,
+    });
 
     // 2. Query Media Items
     const query: any = { galleryId: new mongoose.Types.ObjectId(galleryId) };

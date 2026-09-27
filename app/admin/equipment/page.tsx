@@ -12,7 +12,7 @@ import { EquipmentManager, EquipmentItem } from '@/components/admin/EquipmentMan
 export const dynamic = 'force-dynamic';
 
 export default async function AdminEquipmentPage() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
   const session = token ? await verifyAdminToken(token) : null;
 

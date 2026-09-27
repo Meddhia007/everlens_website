@@ -10,10 +10,11 @@ import mongoose from 'mongoose';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies();
+    const { id } = await params;
+    const cookieStore = await cookies();
     const token = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
     const session = token ? await verifyAdminToken(token) : null;
 
@@ -21,7 +22,6 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 });
     }
@@ -55,7 +55,7 @@ export async function GET(
 
         let viewUrl: string | null = null;
         try {
-          viewUrl = await getPresignedDownloadUrl(item.r2Key, 86400);
+          viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
         } catch {
           viewUrl = null;
         }

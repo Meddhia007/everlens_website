@@ -17,15 +17,16 @@ import mongoose from 'mongoose';
 export const dynamic = 'force-dynamic';
 
 interface AdminPrintOrderDetailPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function AdminPrintOrderDetailPage({
   params,
 }: AdminPrintOrderDetailPageProps) {
-  const cookieStore = cookies();
+  const { id } = await params;
+  const cookieStore = await cookies();
   const token = cookieStore.get(ADMIN_COOKIE_NAME)?.value;
   const session = token ? await verifyAdminToken(token) : null;
 
@@ -33,7 +34,6 @@ export default async function AdminPrintOrderDetailPage({
     redirect('/admin/login');
   }
 
-  const { id } = params;
   if (!mongoose.Types.ObjectId.isValid(id)) {
     notFound();
   }
@@ -70,7 +70,7 @@ export default async function AdminPrintOrderDetailPage({
 
       let viewUrl: string | null = null;
       try {
-        viewUrl = await getPresignedDownloadUrl(item.r2Key, 86400);
+        viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
       } catch {
         viewUrl = null;
       }

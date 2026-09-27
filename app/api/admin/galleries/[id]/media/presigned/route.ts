@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getPresignedUploadUrl } from '@/lib/r2';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
+import { validateUploadMetadata } from '@/lib/upload-validator';
 import mongoose from 'mongoose';
 
 // Helper to authenticate admin
@@ -13,35 +14,42 @@ async function authenticateAdmin(request: NextRequest) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const galleryId = params.id;
+    const galleryId = id;
     if (!mongoose.Types.ObjectId.isValid(galleryId)) {
       return NextResponse.json({ error: 'Invalid gallery ID' }, { status: 400 });
     }
 
-    const body = await request.json();
-    const { filename, contentType } = body;
+    const body = await request.json().catch(() => ({}));
+    const { filename, contentType, fileSize } = body;
 
-    if (!filename) {
+    if (!filename || typeof filename !== 'string') {
       return NextResponse.json({ error: 'Filename is required' }, { status: 400 });
     }
 
-    // Auto-detect type from contentType or extension
-    const isVideo =
-      contentType?.startsWith('video/') ||
-      /\.(mp4|mov|m4v|webm|mkv|avi)$/i.test(filename);
-    const mediaType: 'photo' | 'video' = isVideo ? 'video' : 'photo';
+    // 1. Server-side validation of file extension and size constraints
+    const metadataValidation = validateUploadMetadata(filename, typeof fileSize === 'number' ? fileSize : undefined);
+    if (!metadataValidation.valid) {
+      return NextResponse.json(
+        { error: metadataValidation.error || 'Invalid file format or size.' },
+        { status: 400 }
+      );
+    }
+
+    const mediaType = metadataValidation.type || 'photo';
+    const isVideo = mediaType === 'video';
 
     // Sanitize extension and generate randomized namespaced key
     const extMatch = filename.match(/\.([a-zA-Z0-9]+)$/);
-    const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '';
+    const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : (isVideo ? '.mp4' : '.jpg');
     const uniqueId = crypto.randomUUID();
     const timestamp = Date.now();
 

@@ -14,7 +14,7 @@ import { PortalSanctuaryView } from '@/components/portal/PortalSanctuaryView';
 import { PortalMediaItem } from '@/components/portal/PortalLightbox';
 
 export default async function ClientPortalPage() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get(CLIENT_COOKIE_NAME)?.value;
   const session = token ? await verifyClientToken(token) : null;
 
@@ -116,8 +116,8 @@ export default async function ClientPortalPage() {
       rawItems.map(async (item) => {
         let viewUrl: string | null = null;
         try {
-          // Generate signed view URL from R2
-          viewUrl = await getPresignedDownloadUrl(item.r2Key, 86400);
+          // Generate signed view URL from R2 (1 hour expiry)
+          viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
         } catch {
           viewUrl = null;
         }

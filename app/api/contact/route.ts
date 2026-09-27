@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { Inquiry } from '@/models/Inquiry';
 import { sendStudioInquiryNotificationEmail } from '@/lib/email';
+import { sanitizeString, sanitizeEmail } from '@/lib/security-sanitize';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const {
       coupleNames,
       email,
@@ -20,14 +21,17 @@ export async function POST(request: NextRequest) {
       notes,
     } = body;
 
-    if (!coupleNames || typeof coupleNames !== 'string' || !coupleNames.trim()) {
+    const cleanCoupleNames = sanitizeString(coupleNames, 150);
+    const cleanEmail = sanitizeEmail(email);
+
+    if (!cleanCoupleNames) {
       return NextResponse.json(
         { error: 'Couple names are required.' },
         { status: 400 }
       );
     }
 
-    if (!email || typeof email !== 'string' || !email.trim()) {
+    if (!cleanEmail) {
       return NextResponse.json(
         { error: 'A valid email address is required.' },
         { status: 400 }
@@ -38,15 +42,15 @@ export async function POST(request: NextRequest) {
 
     // 1. Persist lead in MongoDB
     const inquiry = await Inquiry.create({
-      coupleNames: coupleNames.trim(),
-      email: email.trim().toLowerCase(),
-      phone: phone?.trim() || undefined,
-      eventDate: eventDate?.trim() || undefined,
-      venue: venue?.trim() || undefined,
-      packageInterest: packageInterest?.trim() || undefined,
-      mediaType: mediaType?.trim() || undefined,
-      guestCount: guestCount?.trim() || undefined,
-      notes: notes?.trim() || undefined,
+      coupleNames: cleanCoupleNames,
+      email: cleanEmail,
+      phone: sanitizeString(phone, 50) || undefined,
+      eventDate: sanitizeString(eventDate, 50) || undefined,
+      venue: sanitizeString(venue, 100) || undefined,
+      packageInterest: sanitizeString(packageInterest, 100) || undefined,
+      mediaType: sanitizeString(mediaType, 50) || undefined,
+      guestCount: sanitizeString(guestCount, 50) || undefined,
+      notes: sanitizeString(notes, 2000) || undefined,
       submittedAt: new Date(),
       isRead: false,
     });

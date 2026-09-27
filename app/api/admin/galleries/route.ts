@@ -9,6 +9,7 @@ import {
   generateGuestPin,
   generateGuestToken,
 } from '@/lib/generators';
+import { sanitizeEmail, sanitizeString } from '@/lib/security-sanitize';
 
 // Helper to authenticate admin
 async function authenticateAdmin(request: NextRequest) {
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const {
       coupleNames,
       weddingDate,
@@ -90,21 +91,27 @@ export async function POST(request: NextRequest) {
       guestLinkToken,
     } = body;
 
+    const cleanCoupleNames = sanitizeString(coupleNames, 150);
+    const cleanClientEmail = sanitizeEmail(clientEmail);
+    const cleanStatus = ['draft', 'active', 'archived'].includes(status) ? status : 'draft';
+    const cleanGuestPin = sanitizeString(guestPin, 10);
+    const cleanGuestLinkToken = sanitizeString(guestLinkToken, 100);
+    const cleanPassword = sanitizeString(password, 100);
+
     // Validation
-    if (!coupleNames?.trim()) {
+    if (!cleanCoupleNames) {
       return NextResponse.json({ error: 'Couple names are required' }, { status: 400 });
     }
     if (!weddingDate) {
       return NextResponse.json({ error: 'Wedding date is required' }, { status: 400 });
     }
-    if (!clientEmail?.trim()) {
-      return NextResponse.json({ error: 'Client email is required' }, { status: 400 });
+    if (!cleanClientEmail) {
+      return NextResponse.json({ error: 'A valid client email is required' }, { status: 400 });
     }
 
     await connectToDatabase();
 
-    const normalizedEmail = clientEmail.toLowerCase().trim();
-    const existing = await Gallery.findOne({ clientEmail: normalizedEmail });
+    const existing = await Gallery.findOne({ clientEmail: cleanClientEmail });
     if (existing) {
       return NextResponse.json(
         { error: 'A gallery with this client email already exists.' },
@@ -113,12 +120,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-generate password if not provided
-    const plainPassword = password?.trim() || generateSecurePassword();
+    const plainPassword = cleanPassword || generateSecurePassword();
     const passwordHash = await hashPassword(plainPassword);
 
     // Auto-generate guest credentials if omitted
-    const assignedGuestPin = guestPin?.trim() || generateGuestPin();
-    const assignedGuestToken = guestLinkToken?.trim() || generateGuestToken(coupleNames);
+    const assignedGuestPin = cleanGuestPin || generateGuestPin();
+    const assignedGuestToken = cleanGuestLinkToken || generateGuestToken(cleanCoupleNames);
 
     // Default expiration: 1 year from wedding date if not specified
     const calculatedExpiry = expirationDate
@@ -126,11 +133,11 @@ export async function POST(request: NextRequest) {
       : new Date(new Date(weddingDate).getTime() + 365 * 24 * 60 * 60 * 1000);
 
     const gallery = await Gallery.create({
-      coupleNames: coupleNames.trim(),
+      coupleNames: cleanCoupleNames,
       weddingDate: new Date(weddingDate),
-      clientEmail: normalizedEmail,
+      clientEmail: cleanClientEmail,
       passwordHash,
-      status,
+      status: cleanStatus,
       expirationDate: calculatedExpiry,
       guestPin: assignedGuestPin,
       guestLinkToken: assignedGuestToken,

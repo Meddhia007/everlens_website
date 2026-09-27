@@ -29,12 +29,17 @@ export interface GuestTokenPayload {
   role: 'guest';
 }
 
+export const ADMIN_COOKIE_MAX_AGE = 2 * 60 * 60; // 2 hours
+export const CLIENT_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+export const GUEST_COOKIE_MAX_AGE = 24 * 60 * 60; // 24 hours
+
 // Admin Token Signing & Verification (Edge & Node compatible)
+// Admin session hardened to 2 hours maximum lifetime
 export async function signAdminToken(payload: AdminTokenPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime('2h')
     .sign(JWT_SECRET);
 }
 

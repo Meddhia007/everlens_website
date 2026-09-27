@@ -18,7 +18,20 @@ async function handleSeed() {
   try {
     await connectToDatabase();
 
-    // 1. Seed or update Admin User
+    const isProduction = process.env.NODE_ENV === 'production';
+    const existingAdmin = await AdminUser.findOne({});
+
+    // In production, prevent re-seeding or password resets if an admin already exists
+    if (isProduction && existingAdmin) {
+      return NextResponse.json(
+        {
+          error: 'Forbidden: Seeding is disabled in production because an admin account already exists. Please login via /admin/login.',
+        },
+        { status: 403 }
+      );
+    }
+
+    // 1. Seed initial Admin User (hashed with bcrypt, 10 rounds)
     const adminEmail = 'admin@everlensweddings.com';
     const adminPassword = 'EverLens2025!';
     const adminPasswordHash = await hashPassword(adminPassword);
@@ -30,14 +43,12 @@ async function handleSeed() {
         passwordHash: adminPasswordHash,
         name: 'Studio Admin',
       });
-      console.log('Created admin user:', adminEmail);
-    } else {
+    } else if (!isProduction) {
       admin.passwordHash = adminPasswordHash;
       await admin.save();
-      console.log('Updated existing admin user password:', adminEmail);
     }
 
-    // 2. Seed or update Client Gallery
+    // 2. Seed initial Client Gallery (hashed with bcrypt, 10 rounds)
     const clientEmail = 'sarah.youssef@example.com';
     const clientPassword = 'Wedding2025!';
     const clientPasswordHash = await hashPassword(clientPassword);
@@ -54,29 +65,22 @@ async function handleSeed() {
         guestPin: '4829',
         guestLinkToken: 'sy-carthage-2024',
       });
-      console.log('Created sample client gallery for:', clientEmail);
-    } else {
+    } else if (!isProduction) {
       gallery.passwordHash = clientPasswordHash;
       gallery.status = 'active';
       await gallery.save();
-      console.log('Updated existing gallery password for:', clientEmail);
     }
 
-    // 3. Seed Sample Media Items if none exist for this gallery
-    const existingMediaCount = await MediaItem.countDocuments({ galleryId: gallery._id });
-    let createdMediaItems = [];
-
-    if (existingMediaCount < 10) {
-      // Remove any sparse existing sample items and insert full rich collection
-      await MediaItem.deleteMany({ galleryId: gallery._id });
-
+    // 3. Seed Media Items if empty
+    const existingMedia = await MediaItem.countDocuments({ galleryId: gallery._id });
+    if (existingMedia === 0) {
       const sampleItems = [
         {
           galleryId: gallery._id,
           originalFilename: 'bridal_veil_editorial_01.jpg',
           r2Key: `galleries/${gallery._id}/photos/bridal_veil_editorial_01.jpg`,
-          type: 'photo' as const,
-          category: 'getting-ready' as const,
+          type: 'photo',
+          category: 'getting-ready',
           isPublicPortfolio: true,
           isPrintSelected: true,
           printNote: 'Cover photo for archival linen album',
@@ -85,8 +89,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'rades_coastal_portrait_02.jpg',
           r2Key: `galleries/${gallery._id}/photos/rades_coastal_portrait_02.jpg`,
-          type: 'photo' as const,
-          category: 'couples-portraits' as const,
+          type: 'photo',
+          category: 'couples-portraits',
           isPublicPortfolio: true,
           isPrintSelected: true,
           printNote: 'Spread across pages 4-5',
@@ -95,8 +99,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'ayoub_dorsaf_golden_hour_03.jpg',
           r2Key: `galleries/${gallery._id}/photos/ayoub_dorsaf_golden_hour_03.jpg`,
-          type: 'photo' as const,
-          category: 'couples-portraits' as const,
+          type: 'photo',
+          category: 'couples-portraits',
           isPublicPortfolio: true,
           isPrintSelected: true,
           printNote: 'Warm golden hour lab grading',
@@ -105,8 +109,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'traditional_heritage_attire_04.jpg',
           r2Key: `galleries/${gallery._id}/photos/traditional_heritage_attire_04.jpg`,
-          type: 'photo' as const,
-          category: 'ceremony' as const,
+          type: 'photo',
+          category: 'ceremony',
           isPublicPortfolio: true,
           isPrintSelected: false,
         },
@@ -114,8 +118,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'carthage_palace_ceremony_05.jpg',
           r2Key: `galleries/${gallery._id}/photos/carthage_palace_ceremony_05.jpg`,
-          type: 'photo' as const,
-          category: 'ceremony' as const,
+          type: 'photo',
+          category: 'ceremony',
           isPublicPortfolio: true,
           isPrintSelected: true,
           printNote: 'Monochrome black & white spread',
@@ -124,8 +128,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'mediterranean_shoreline_06.jpg',
           r2Key: `galleries/${gallery._id}/photos/mediterranean_shoreline_06.jpg`,
-          type: 'photo' as const,
-          category: 'couples-portraits' as const,
+          type: 'photo',
+          category: 'couples-portraits',
           isPublicPortfolio: true,
           isPrintSelected: true,
           printNote: 'Full bleed centerfold',
@@ -134,8 +138,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'ayoub_dorsaf_sunset_vows_07.jpg',
           r2Key: `galleries/${gallery._id}/photos/ayoub_dorsaf_sunset_vows_07.jpg`,
-          type: 'photo' as const,
-          category: 'ceremony' as const,
+          type: 'photo',
+          category: 'ceremony',
           isPublicPortfolio: true,
           isPrintSelected: true,
           printNote: 'Retouch soft focus background',
@@ -144,8 +148,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'heirloom_family_portrait_08.jpg',
           r2Key: `galleries/${gallery._id}/photos/heirloom_family_portrait_08.jpg`,
-          type: 'photo' as const,
-          category: 'reception' as const,
+          type: 'photo',
+          category: 'reception',
           isPublicPortfolio: true,
           isPrintSelected: false,
         },
@@ -153,8 +157,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'hedi_zaibi_bridal_couture_09.jpg',
           r2Key: `galleries/${gallery._id}/photos/hedi_zaibi_bridal_couture_09.jpg`,
-          type: 'photo' as const,
-          category: 'getting-ready' as const,
+          type: 'photo',
+          category: 'getting-ready',
           isPublicPortfolio: true,
           isPrintSelected: false,
         },
@@ -162,8 +166,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'ayoub_dorsaf_celebration_dance_10.jpg',
           r2Key: `galleries/${gallery._id}/photos/ayoub_dorsaf_celebration_dance_10.jpg`,
-          type: 'photo' as const,
-          category: 'reception' as const,
+          type: 'photo',
+          category: 'reception',
           isPublicPortfolio: true,
           isPrintSelected: false,
         },
@@ -171,8 +175,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'rades_sunset_landscape_11.jpg',
           r2Key: `galleries/${gallery._id}/photos/rades_sunset_landscape_11.jpg`,
-          type: 'photo' as const,
-          category: 'couples-portraits' as const,
+          type: 'photo',
+          category: 'couples-portraits',
           isPublicPortfolio: true,
           isPrintSelected: false,
         },
@@ -180,8 +184,8 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'wedding_highlight_film_4k.mp4',
           r2Key: `galleries/${gallery._id}/films/wedding_highlight_film_4k.mp4`,
-          type: 'video' as const,
-          category: 'films' as const,
+          type: 'video',
+          category: 'films',
           isPublicPortfolio: true,
           isPrintSelected: false,
         },
@@ -189,52 +193,33 @@ async function handleSeed() {
           galleryId: gallery._id,
           originalFilename: 'cinematic_teaser_reel.mp4',
           r2Key: `galleries/${gallery._id}/films/cinematic_teaser_reel.mp4`,
-          type: 'video' as const,
-          category: 'films' as const,
+          type: 'video',
+          category: 'films',
           isPublicPortfolio: true,
           isPrintSelected: false,
         },
       ];
 
-      createdMediaItems = await MediaItem.insertMany(sampleItems);
-      console.log(`Inserted ${createdMediaItems.length} media items.`);
+      await MediaItem.insertMany(sampleItems);
     }
 
-    // 4. Seed or update PrintSelection
+    // 4. Seed Print Selection
     let printSelection = await PrintSelection.findOne({ galleryId: gallery._id });
-    const selectedMedia = await MediaItem.find({
-      galleryId: gallery._id,
-      isPrintSelected: true,
-    });
-
     if (!printSelection) {
+      const selected = await MediaItem.find({ galleryId: gallery._id, isPrintSelected: true });
       printSelection = await PrintSelection.create({
         galleryId: gallery._id,
-        mediaItemIds: selectedMedia.map((m) => m._id),
+        mediaItemIds: selected.map((m) => m._id),
         locked: false,
       });
-      console.log('Created PrintSelection record for gallery');
-    } else {
-      printSelection.mediaItemIds = selectedMedia.map((m) => m._id);
-      await printSelection.save();
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Database seeded successfully!',
-      credentials: {
-        admin: {
-          email: adminEmail,
-          password: adminPassword,
-          loginUrl: '/admin/login',
-        },
-        client: {
-          email: clientEmail,
-          password: clientPassword,
-          coupleNames: 'Sarah & Youssef',
-          loginUrl: '/portal/login',
-        },
-      },
+      message: 'Database seeded successfully.',
+      environment: process.env.NODE_ENV || 'development',
+      adminEmail,
+      clientEmail,
       galleryId: gallery._id.toString(),
     });
   } catch (error: any) {

@@ -142,11 +142,10 @@ Thank you for trusting EverLens with your celebration memories.
 
       console.log(`[ARCHIVE WORKER] Upload completed for ${zipKey}`);
 
-      // Generate 48-hour signed download URL (48 * 3600 = 172,800 seconds)
-      downloadUrl = await getPresignedDownloadUrl(zipKey, 172800, {
-        downloadFilename: `${safeSlug}_wedding_collection.zip`,
-        contentType: 'application/zip',
-      });
+      // In production, the file is archived in Cloudflare R2 at zipKey.
+      // Short-lived signed URLs (15-min expiry) are generated dynamically on-demand
+      // in /api/portal/downloads only after authenticating the client session.
+      downloadUrl = '/portal#downloads';
     }
 
     const expiresAt = new Date(Date.now() + 48 * 3600 * 1000);
@@ -161,7 +160,7 @@ Thank you for trusting EverLens with your celebration memories.
 
     console.log(`[ARCHIVE WORKER] Job ${jobId} marked READY. Dispatching email...`);
 
-    // Dispatch transactional email to couple
+    // Dispatch notification email to couple directing them to their authenticated portal
     await sendDownloadReadyEmail({
       to: job.clientEmail,
       coupleNames: job.coupleNames,

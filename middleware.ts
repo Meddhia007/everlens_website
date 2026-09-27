@@ -6,11 +6,39 @@ import {
   ADMIN_COOKIE_NAME,
   CLIENT_COOKIE_NAME,
 } from './lib/tokens';
+import { handleCorsPreflight, isOriginAllowed } from './lib/cors';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Admin Route Protection
+  // 1. Force HTTPS in production environments (e.g. Vercel / Cloudflare)
+  if (process.env.NODE_ENV === 'production') {
+    const proto = request.headers.get('x-forwarded-proto');
+    const host = request.headers.get('host');
+    if (proto === 'http' && host) {
+      return NextResponse.redirect(
+        `https://${host}${request.nextUrl.pathname}${request.nextUrl.search}`,
+        301
+      );
+    }
+  }
+
+  // 1b. Strict CORS Lockdown for API routes
+  if (pathname.startsWith('/api')) {
+    if (request.method === 'OPTIONS') {
+      return handleCorsPreflight(request);
+    }
+
+    const origin = request.headers.get('origin');
+    if (origin && !isOriginAllowed(origin)) {
+      return NextResponse.json(
+        { error: 'CORS policy: Request origin is not allowed.' },
+        { status: 403 }
+      );
+    }
+  }
+
+  // 2. Admin Route Protection
   if (pathname.startsWith('/admin')) {
     const isLoginPage = pathname === '/admin/login';
     const adminToken = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
@@ -33,7 +61,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Client Portal Route Protection (Scoped to Gallery session)
+  // 3. Client Portal Route Protection (Scoped to Gallery session)
   if (pathname.startsWith('/portal')) {
     const isLoginPage = pathname === '/portal/login';
     const clientToken = request.cookies.get(CLIENT_COOKIE_NAME)?.value;
@@ -60,9 +88,26 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  const origin = request.headers.get('origin');
+  if (origin && isOriginAllowed(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Vary', 'Origin');
+  }
+
+  return response;
 }
 
 export const config = {
-  matcher: ['/admin', '/admin/:path*', '/portal', '/portal/:path*'],
+  matcher: [
+    /*
+     * Match all request paths except for:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.svg, favicon.ico (favicon files)
+     * - public assets
+     */
+    '/((?!_next/static|_next/image|favicon.svg|favicon.ico|portfolio|images|uploads).*)',
+  ],
 };

@@ -6,6 +6,7 @@ import '@/models/Gallery';
 import { getPresignedDownloadUrl } from '@/lib/r2';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
 import { memoryStore } from '@/lib/memoryStore';
+import { sanitizeString, stripMongoOperators } from '@/lib/security-sanitize';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -17,14 +18,13 @@ async function authenticateAdmin(request: NextRequest) {
 }
 
 // GET: Fetch single post
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
-
-    const { id } = params;
 
     try {
       await connectToDatabase();
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         if (media) {
           let mediaUrl = '';
           try {
-            mediaUrl = await getPresignedDownloadUrl(media.r2Key, 86400);
+            mediaUrl = await getPresignedDownloadUrl(media.r2Key, 3600);
           } catch {}
 
           const gallery: any = media.galleryId;
@@ -80,37 +80,44 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT: Update post
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const { id } = params;
     const body = await request.json();
 
     const updateData: any = {};
-    if (body.title !== undefined) updateData.title = body.title.trim();
-    if (body.location !== undefined) updateData.location = body.location.trim();
-    if (body.year !== undefined) updateData.year = body.year.trim();
-    if (body.category !== undefined) updateData.category = body.category.trim().toLowerCase();
-    if (body.coverImage !== undefined) updateData.coverImage = body.coverImage;
-    if (body.videoUrl !== undefined) updateData.videoUrl = body.videoUrl.trim();
+    if (body.title !== undefined) updateData.title = sanitizeString(body.title, 200);
+    if (body.location !== undefined) updateData.location = sanitizeString(body.location, 200);
+    if (body.year !== undefined) updateData.year = sanitizeString(body.year, 10);
+    if (body.category !== undefined) updateData.category = sanitizeString(body.category, 50).toLowerCase();
+    if (body.coverImage !== undefined) updateData.coverImage = sanitizeString(body.coverImage, 2000);
+    if (body.videoUrl !== undefined) updateData.videoUrl = sanitizeString(body.videoUrl, 2000);
     if (body.media !== undefined && Array.isArray(body.media)) {
-      updateData.media = body.media;
-      if (!updateData.coverImage && body.media.length > 0) {
-        updateData.coverImage = body.media[0].url;
+      updateData.media = body.media.map((m: any) => ({
+        url: sanitizeString(m?.url, 2000),
+        type: m?.type === 'video' ? 'video' : 'photo',
+        caption: sanitizeString(m?.caption, 200),
+        aspectRatio: sanitizeString(m?.aspectRatio, 20) || '4/5',
+      }));
+      if (!updateData.coverImage && updateData.media.length > 0) {
+        updateData.coverImage = updateData.media[0].url;
       }
     }
-    if (body.featured !== undefined) updateData.featured = !!body.featured;
-    if (body.order !== undefined) updateData.order = Number(body.order);
+    if (body.featured !== undefined) updateData.featured = Boolean(body.featured);
+    if (body.order !== undefined) updateData.order = Number(body.order) || 0;
+
+    const safeUpdateData = stripMongoOperators(updateData);
 
     try {
       await connectToDatabase();
       const updated = mongoose.Types.ObjectId.isValid(id)
-        ? await PortfolioPost.findByIdAndUpdate(id, updateData, { new: true }).lean()
-        : await PortfolioPost.findOneAndUpdate({ _id: id }, updateData, { new: true }).lean();
+        ? await PortfolioPost.findByIdAndUpdate(id, safeUpdateData, { new: true }).lean()
+        : await PortfolioPost.findOneAndUpdate({ _id: id }, safeUpdateData, { new: true }).lean();
       if (updated) {
         const formatted = { ...updated, _id: updated._id.toString() };
         if (memoryStore) {
@@ -161,14 +168,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE: Delete post or unpublish gallery item from portfolio
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
-
-    const { id } = params;
 
     try {
       await connectToDatabase();

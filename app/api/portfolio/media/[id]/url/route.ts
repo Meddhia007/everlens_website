@@ -8,10 +8,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const mediaId = params.id;
+    const { id } = await params;
+    const mediaId = id;
     if (!mongoose.Types.ObjectId.isValid(mediaId)) {
       return NextResponse.json({ error: 'Invalid media ID' }, { status: 400 });
     }
@@ -32,11 +33,12 @@ export async function GET(
     }
 
     const isDownload = request.nextUrl.searchParams.get('download') === 'true';
+    const expirySeconds = isDownload ? 900 : 3600;
 
-    // Generate short-lived signed URL (15 minutes / 900 seconds)
+    // Generate short-lived signed URL (3600s for viewing, 900s for downloads)
     const shortLivedUrl = await getPresignedDownloadUrl(
       item.r2Key,
-      900,
+      expirySeconds,
       isDownload ? { downloadFilename: item.originalFilename } : undefined
     );
 
@@ -45,7 +47,7 @@ export async function GET(
       filename: item.originalFilename,
       type: item.type,
       category: item.category,
-      expiresSeconds: 900,
+      expiresSeconds: expirySeconds,
     });
   } catch (error: any) {
     console.error('Failed to generate public media streaming URL:', error);

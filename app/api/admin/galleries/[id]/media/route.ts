@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { MediaItem } from '@/models/MediaItem';
 import { getPresignedDownloadUrl } from '@/lib/r2';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
+import { validateUploadMetadata } from '@/lib/upload-validator';
 import mongoose from 'mongoose';
 
 async function authenticateAdmin(request: NextRequest) {
@@ -14,15 +15,16 @@ async function authenticateAdmin(request: NextRequest) {
 // GET: List all media items for this gallery with presigned preview URLs
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const galleryId = params.id;
+    const galleryId = id;
     if (!mongoose.Types.ObjectId.isValid(galleryId)) {
       return NextResponse.json({ error: 'Invalid gallery ID' }, { status: 400 });
     }
@@ -38,8 +40,8 @@ export async function GET(
       items.map(async (item) => {
         let viewUrl: string | null = null;
         try {
-          // Generate 24-hour presigned view URL directly from R2
-          viewUrl = await getPresignedDownloadUrl(item.r2Key, 86400);
+          // Generate 1-hour presigned view URL directly from R2
+          viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
         } catch {
           // If R2 credentials are dummy/offline, viewUrl remains null
           viewUrl = null;
@@ -67,15 +69,16 @@ export async function GET(
 // POST: Create a new MediaItem after successful direct R2 upload
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
 
-    const galleryId = params.id;
+    const galleryId = id;
     if (!mongoose.Types.ObjectId.isValid(galleryId)) {
       return NextResponse.json({ error: 'Invalid gallery ID' }, { status: 400 });
     }
@@ -97,6 +100,21 @@ export async function POST(
       );
     }
 
+    const metadataValidation = validateUploadMetadata(originalFilename);
+    if (!metadataValidation.valid) {
+      return NextResponse.json(
+        { error: metadataValidation.error || 'Invalid file format.' },
+        { status: 400 }
+      );
+    }
+
+    if (typeof r2Key !== 'string' || !r2Key.startsWith(`galleries/${galleryId}/`)) {
+      return NextResponse.json(
+        { error: 'Invalid storage key for this gallery.' },
+        { status: 400 }
+      );
+    }
+
     await connectToDatabase();
 
     const mediaItem = await MediaItem.create({
@@ -113,7 +131,7 @@ export async function POST(
     // Generate signed view URL
     let viewUrl: string | null = null;
     try {
-      viewUrl = await getPresignedDownloadUrl(mediaItem.r2Key, 86400);
+      viewUrl = await getPresignedDownloadUrl(mediaItem.r2Key, 3600);
     } catch {
       viewUrl = null;
     }

@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { PrintSelection } from '@/models/PrintSelection';
-import { MediaItem } from '@/models/MediaItem';
-import { verifyClientToken, CLIENT_COOKIE_NAME } from '@/lib/auth';
+import { authorizeGalleryAccess, authorizeMediaAccess } from '@/lib/gallery-auth';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const clientToken = request.cookies.get(CLIENT_COOKIE_NAME)?.value;
-    if (!clientToken) {
-      return NextResponse.json({ error: 'Unauthorized client access' }, { status: 401 });
+    const auth = await authorizeGalleryAccess(request);
+    if (!auth.success) {
+      return auth.response;
     }
 
-    const session = await verifyClientToken(clientToken);
-    if (!session || !session.galleryId) {
-      return NextResponse.json({ error: 'Invalid or expired client session' }, { status: 401 });
-    }
-
+    const { session } = auth;
     await connectToDatabase();
 
     const selection = await PrintSelection.findOne({ galleryId: session.galleryId }).lean();
@@ -40,16 +35,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const clientToken = request.cookies.get(CLIENT_COOKIE_NAME)?.value;
-    if (!clientToken) {
-      return NextResponse.json({ error: 'Unauthorized client access' }, { status: 401 });
-    }
-
-    const session = await verifyClientToken(clientToken);
-    if (!session || !session.galleryId) {
-      return NextResponse.json({ error: 'Invalid or expired client session' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { mediaItemId, selected } = body;
 
@@ -57,20 +42,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid media item ID' }, { status: 400 });
     }
 
-    await connectToDatabase();
-
-    // Verify media item belongs to this gallery and is a photo
-    const mediaItem = await MediaItem.findById(mediaItemId);
-    if (!mediaItem) {
-      return NextResponse.json({ error: 'Media item not found' }, { status: 404 });
+    // Server-side authorization: Re-verify that the authenticated session owns this media item
+    const auth = await authorizeMediaAccess(request, mediaItemId);
+    if (!auth.success) {
+      return auth.response;
     }
 
-    if (mediaItem.galleryId.toString() !== session.galleryId) {
-      return NextResponse.json(
-        { error: 'Forbidden: Media item does not belong to your gallery' },
-        { status: 403 }
-      );
-    }
+    const { session, mediaItem } = auth;
 
     if (mediaItem.type !== 'photo') {
       return NextResponse.json(
@@ -78,6 +56,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    await connectToDatabase();
 
     // Find or initialize PrintSelection record
     let selection = await PrintSelection.findOne({ galleryId: session.galleryId });
@@ -113,16 +93,25 @@ export async function POST(request: NextRequest) {
         }
 
         selection.mediaItemIds.push(new mongoose.Types.ObjectId(mediaItemId) as any);
-        mediaItem.isPrintSelected = true;
-        await Promise.all([selection.save(), mediaItem.save()]);
+        await Promise.all([
+          selection.save(),
+          // Update MediaItem selection flag
+          import('@/models/MediaItem').then(({ MediaItem }) =>
+            MediaItem.findByIdAndUpdate(mediaItemId, { isPrintSelected: true })
+          ),
+        ]);
       }
     } else {
       if (isAlreadySelected) {
         selection.mediaItemIds = selection.mediaItemIds.filter(
           (id) => id.toString() !== mediaItemId
         ) as any;
-        mediaItem.isPrintSelected = false;
-        await Promise.all([selection.save(), mediaItem.save()]);
+        await Promise.all([
+          selection.save(),
+          import('@/models/MediaItem').then(({ MediaItem }) =>
+            MediaItem.findByIdAndUpdate(mediaItemId, { isPrintSelected: false })
+          ),
+        ]);
       }
     }
 

@@ -21,9 +21,10 @@ function slugify(text: string): string {
 // GET: Single work category
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
@@ -31,7 +32,7 @@ export async function GET(
 
     try {
       await connectToDatabase();
-      const item = await WorkCategory.findById(params.id).lean();
+      const item = await WorkCategory.findById(id).lean();
 
       if (item) {
         return NextResponse.json({
@@ -45,7 +46,7 @@ export async function GET(
       // Fall through to memoryStore
     }
 
-    const memoryItem = memoryStore.categories.find((it) => it._id === params.id);
+    const memoryItem = memoryStore.categories.find((it) => it._id === id);
     if (!memoryItem) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
@@ -63,9 +64,10 @@ export async function GET(
 // PUT: Update work category
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
@@ -90,7 +92,7 @@ export async function PUT(
       if (updateData.slug) {
         const existing = await WorkCategory.findOne({
           slug: updateData.slug,
-          _id: { $ne: params.id },
+          _id: { $ne: id },
         });
         if (existing) {
           return NextResponse.json(
@@ -100,7 +102,7 @@ export async function PUT(
         }
       }
 
-      const updated = await WorkCategory.findByIdAndUpdate(params.id, updateData, {
+      const updated = await WorkCategory.findByIdAndUpdate(id, updateData, {
         new: true,
         runValidators: true,
       }).lean();
@@ -110,7 +112,7 @@ export async function PUT(
           ...(updated as any),
           _id: (updated as any)._id.toString(),
         };
-        const idx = memoryStore.categories.findIndex((it) => it._id === params.id);
+        const idx = memoryStore.categories.findIndex((it) => it._id === id);
         if (idx !== -1) memoryStore.categories[idx] = formatted;
 
         return NextResponse.json({
@@ -126,14 +128,14 @@ export async function PUT(
     }
 
     // Update in memoryStore
-    const idx = memoryStore.categories.findIndex((it) => it._id === params.id);
+    const idx = memoryStore.categories.findIndex((it) => it._id === id);
     if (idx === -1) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
     if (updateData.slug) {
       const duplicate = memoryStore.categories.find(
-        (it) => it.slug === updateData.slug && it._id !== params.id
+        (it) => it.slug === updateData.slug && it._id !== id
       );
       if (duplicate) {
         return NextResponse.json(
@@ -165,9 +167,10 @@ export async function PUT(
 // DELETE: Delete work category
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const admin = await authenticateAdmin(request);
     if (!admin) {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
@@ -175,12 +178,12 @@ export async function DELETE(
 
     try {
       await connectToDatabase();
-      await WorkCategory.findByIdAndDelete(params.id).lean();
+      await WorkCategory.findByIdAndDelete(id).lean();
     } catch {
       // Fall through
     }
 
-    memoryStore.categories = memoryStore.categories.filter((it) => it._id !== params.id);
+    memoryStore.categories = memoryStore.categories.filter((it) => it._id !== id);
 
     return NextResponse.json({
       success: true,
