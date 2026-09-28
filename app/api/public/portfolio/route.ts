@@ -89,10 +89,52 @@ export async function GET(request: NextRequest) {
       // 2. Fetch standard PortfolioPost collection items
       const portfolioPosts = await PortfolioPost.find().sort({ order: 1, createdAt: -1 }).lean();
 
-      const formattedPortfolioPosts = portfolioPosts.map((item: any) => ({
-        ...item,
-        _id: item._id.toString(),
-      }));
+      const formattedPortfolioPosts = await Promise.all(
+        portfolioPosts.map(async (item: any) => {
+          let resolvedCover = item.coverImage;
+          try {
+            if (resolvedCover) {
+              resolvedCover = await getPresignedDownloadUrl(resolvedCover, 3600);
+            }
+          } catch {
+            // Keep original
+          }
+
+          let resolvedVideoUrl = item.videoUrl;
+          try {
+            if (resolvedVideoUrl) {
+              resolvedVideoUrl = await getPresignedDownloadUrl(resolvedVideoUrl, 3600);
+            }
+          } catch {
+            // Keep original
+          }
+
+          const resolvedMedia = await Promise.all(
+            (item.media || []).map(async (m: any) => {
+              let mUrl = m.url;
+              try {
+                if (mUrl) {
+                  mUrl = await getPresignedDownloadUrl(mUrl, 3600);
+                }
+              } catch {
+                // Keep original
+              }
+              return {
+                ...m,
+                url: mUrl,
+              };
+            })
+          );
+
+          return {
+            ...item,
+            _id: item._id.toString(),
+            coverImage: resolvedCover,
+            videoUrl: resolvedVideoUrl,
+            media: resolvedMedia,
+          };
+        })
+      );
 
       // Combine: gallery media marked for public portfolio appear first
       let allPosts = [...publicMediaPosts, ...formattedPortfolioPosts];

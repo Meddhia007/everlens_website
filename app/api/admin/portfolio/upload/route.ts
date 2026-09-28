@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
 import { validateMagicBytes, MAX_PHOTO_BYTES, MAX_VIDEO_BYTES } from '@/lib/upload-validator';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { uploadObjectToR2, getPresignedDownloadUrl } from '@/lib/r2';
 import crypto from 'crypto';
 import { handleCorsPreflight, getCorsHeaders } from '@/lib/cors';
 
@@ -20,7 +19,7 @@ export async function OPTIONS(request: NextRequest) {
   return handleCorsPreflight(request);
 }
 
-// PUT: Direct binary upload from BulkUploader (simulates presigned R2 PUT in dev)
+// PUT: Direct binary upload (used in mock dev mode or fallback)
 export async function PUT(request: NextRequest) {
   try {
     const admin = await authenticateAdmin(request);
@@ -54,18 +53,17 @@ export async function PUT(request: NextRequest) {
 
     if (!key) {
       const ext = validation.type === 'video' ? '.mp4' : '.jpg';
-      key = `galleries/uploads/${Date.now()}_${crypto.randomUUID()}${ext}`;
+      key = `portfolio/${validation.type === 'video' ? 'videos' : 'images'}/${Date.now()}_${crypto.randomUUID()}${ext}`;
     }
 
     // Clean key of leading slash or traversal
     key = key.replace(/^\/+/, '').replace(/\.\./g, '');
 
-    const publicDir = path.join(process.cwd(), 'public');
-    const filePath = path.join(publicDir, 'uploads', key);
-    const dir = path.dirname(filePath);
-
-    await mkdir(dir, { recursive: true });
-    await writeFile(filePath, buffer);
+    await uploadObjectToR2(
+      key,
+      buffer,
+      validation.mimeType || (validation.type === 'video' ? 'video/mp4' : 'image/jpeg')
+    );
 
     const etag = `"${crypto.createHash('md5').update(buffer).digest('hex')}"`;
     const corsHeaders = getCorsHeaders(request);
@@ -106,14 +104,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No files provided for upload' }, { status: 400 });
     }
 
-    const publicDir = path.join(process.cwd(), 'public');
-    const imagesDir = path.join(publicDir, 'portfolio', 'images');
-    const videosDir = path.join(publicDir, 'portfolio', 'videos');
-
-    await mkdir(imagesDir, { recursive: true });
-    await mkdir(videosDir, { recursive: true });
-
-    const uploadedUrls: Array<{ url: string; type: 'photo' | 'video'; filename: string }> = [];
+    const uploadedUrls: Array<{ url: string; r2Key: string; type: 'photo' | 'video'; filename: string }> = [];
 
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -138,7 +129,6 @@ export async function POST(request: NextRequest) {
       }
 
       const isVideo = validation.type === 'video';
-      const targetDir = isVideo ? videosDir : imagesDir;
       const subFolder = isVideo ? 'videos' : 'images';
 
       // Clean filename
@@ -147,14 +137,24 @@ export async function POST(request: NextRequest) {
         .replace(/[^a-z0-9.-]/g, '_')
         .replace(/_+/g, '_');
 
-      const uniqueFilename = `${Date.now()}_${safeBasename}`;
-      const filePath = path.join(targetDir, uniqueFilename);
+      const uniqueId = crypto.randomUUID().slice(0, 8);
+      const r2Key = `portfolio/${subFolder}/${Date.now()}_${uniqueId}_${safeBasename}`;
+      const contentType = validation.mimeType || (isVideo ? 'video/mp4' : 'image/jpeg');
 
-      await writeFile(filePath, buffer);
+      // Upload to Cloudflare R2
+      await uploadObjectToR2(r2Key, buffer, contentType);
 
-      const publicUrl = `/portfolio/${subFolder}/${uniqueFilename}`;
+      // Generate signed view URL for immediate display
+      let viewUrl = '';
+      try {
+        viewUrl = await getPresignedDownloadUrl(r2Key, 3600);
+      } catch {
+        viewUrl = `/${r2Key}`;
+      }
+
       uploadedUrls.push({
-        url: publicUrl,
+        url: viewUrl,
+        r2Key,
         type: isVideo ? 'video' : 'photo',
         filename: file.name,
       });

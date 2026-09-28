@@ -28,11 +28,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     try {
       await connectToDatabase();
-      const item = mongoose.Types.ObjectId.isValid(id)
+      const item: any = mongoose.Types.ObjectId.isValid(id)
         ? await PortfolioPost.findById(id).lean()
         : await PortfolioPost.findOne({ _id: id }).lean();
       if (item) {
-        return NextResponse.json({ post: { ...item, _id: item._id.toString() } });
+        let resolvedCover = item.coverImage;
+        try {
+          if (resolvedCover) resolvedCover = await getPresignedDownloadUrl(resolvedCover, 3600);
+        } catch {}
+
+        let resolvedVideoUrl = item.videoUrl;
+        try {
+          if (resolvedVideoUrl) resolvedVideoUrl = await getPresignedDownloadUrl(resolvedVideoUrl, 3600);
+        } catch {}
+
+        const resolvedMedia = await Promise.all(
+          (item.media || []).map(async (m: any) => {
+            let mUrl = m.url;
+            try {
+              if (mUrl) mUrl = await getPresignedDownloadUrl(mUrl, 3600);
+            } catch {}
+            return { ...m, url: mUrl };
+          })
+        );
+
+        return NextResponse.json({
+          post: {
+            ...item,
+            _id: item._id.toString(),
+            coverImage: resolvedCover,
+            videoUrl: resolvedVideoUrl,
+            media: resolvedMedia,
+          },
+        });
       }
 
       // Check MediaItem

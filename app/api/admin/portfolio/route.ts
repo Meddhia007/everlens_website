@@ -91,11 +91,53 @@ export async function GET(request: NextRequest) {
       // 2. Fetch standalone PortfolioPost items
       const items = await PortfolioPost.find().sort({ order: 1, createdAt: -1 }).lean();
 
-      const formattedPortfolioPosts = items.map((item: any) => ({
-        ...item,
-        _id: item._id.toString(),
-        source: 'direct',
-      }));
+      const formattedPortfolioPosts = await Promise.all(
+        items.map(async (item: any) => {
+          let resolvedCover = item.coverImage;
+          try {
+            if (resolvedCover) {
+              resolvedCover = await getPresignedDownloadUrl(resolvedCover, 3600);
+            }
+          } catch {
+            // Keep original
+          }
+
+          let resolvedVideoUrl = item.videoUrl;
+          try {
+            if (resolvedVideoUrl) {
+              resolvedVideoUrl = await getPresignedDownloadUrl(resolvedVideoUrl, 3600);
+            }
+          } catch {
+            // Keep original
+          }
+
+          const resolvedMedia = await Promise.all(
+            (item.media || []).map(async (m: any) => {
+              let mUrl = m.url;
+              try {
+                if (mUrl) {
+                  mUrl = await getPresignedDownloadUrl(mUrl, 3600);
+                }
+              } catch {
+                // Keep original
+              }
+              return {
+                ...m,
+                url: mUrl,
+              };
+            })
+          );
+
+          return {
+            ...item,
+            _id: item._id.toString(),
+            coverImage: resolvedCover,
+            videoUrl: resolvedVideoUrl,
+            media: resolvedMedia,
+            source: 'direct',
+          };
+        })
+      );
 
       // Combine both sources
       const allPosts = [...publicMediaPosts, ...formattedPortfolioPosts];

@@ -85,6 +85,8 @@ export const PortfolioPostsManager: React.FC = () => {
   const [formFeatured, setFormFeatured] = useState(false);
   const [formOrder, setFormOrder] = useState<number>(1);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
+  const [uploadError, setUploadError] = useState<string>('');
 
   // Batch Splitter state
   const [batchTitle, setBatchTitle] = useState('');
@@ -93,6 +95,8 @@ export const PortfolioPostsManager: React.FC = () => {
   const [batchPhotos, setBatchPhotos] = useState<string[]>([]);
   const [photosPerPost, setPhotosPerPost] = useState<number>(4);
   const [isBatchUploading, setIsBatchUploading] = useState(false);
+  const [batchUploadProgress, setBatchUploadProgress] = useState<string>('');
+  const [batchUploadError, setBatchUploadError] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
@@ -183,10 +187,81 @@ export const PortfolioPostsManager: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
+  // Unified robust file uploader: requests Cloudflare R2 presigned URL and PUTs directly,
+  // with fallback to server-side PutObjectCommand if needed.
+  const uploadSinglePortfolioFile = async (
+    file: File | Blob,
+    originalFilename?: string
+  ): Promise<{ url: string; r2Key: string; type: 'photo' | 'video' }> => {
+    const filename = originalFilename || (file instanceof File ? file.name : `crop-${Date.now()}.jpg`);
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(filename);
+    const mediaType: 'photo' | 'video' = isVideo ? 'video' : 'photo';
+
+    // 1. Try presigned direct PUT to Cloudflare R2 (bypasses Vercel 4.5MB limit)
+    try {
+      const presignRes = await fetch('/api/admin/portfolio/presigned', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename,
+          contentType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+          fileSize: file.size,
+        }),
+      });
+
+      if (presignRes.ok) {
+        const presignData = await presignRes.json();
+        const { uploadUrl, r2Key, viewUrl } = presignData;
+
+        // Perform direct PUT to R2 / mock endpoint
+        const putRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+          },
+          body: file,
+        });
+
+        if (putRes.ok) {
+          return {
+            url: viewUrl || uploadUrl,
+            r2Key,
+            type: mediaType,
+          };
+        }
+      }
+    } catch (presignErr) {
+      console.warn('Direct presigned PUT failed or blocked, attempting server-side upload fallback:', presignErr);
+    }
+
+    // 2. Fallback: Server-side multipart upload (for files <= 4.5MB)
+    const formData = new FormData();
+    formData.append('file', file, filename);
+
+    const uploadRes = await fetch('/api/admin/portfolio/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const uploadData = await uploadRes.json();
+    if (!uploadRes.ok || !uploadData.uploaded?.[0]) {
+      throw new Error(uploadData.error || `Failed to upload "${filename}". Check file format and size.`);
+    }
+
+    const uploaded = uploadData.uploaded[0];
+    return {
+      url: uploaded.url,
+      r2Key: uploaded.r2Key || uploaded.url,
+      type: uploaded.type || mediaType,
+    };
+  };
+
   // Upload files for Single Post with Instagram aspect ratio check
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsUploading(true);
+    setUploadError('');
+    setUploadProgress('');
 
     try {
       const fileArr = Array.from(files);
@@ -204,7 +279,7 @@ export const PortfolioPostsManager: React.FC = () => {
           const img = new Image();
           img.onload = () => {
             const actual = img.naturalWidth / img.naturalHeight;
-            const target = postRatio === '1:1' ? 1.0 : (4 / 5); // 0.8
+            const target = postRatio === '1:1' ? 1.0 : 4 / 5; // 0.8
             // If aspect ratio deviates by more than 3%, prompt for crop
             if (Math.abs(actual - target) > 0.03) {
               toCrop.push({ file, src: objectUrl });
@@ -223,31 +298,30 @@ export const PortfolioPostsManager: React.FC = () => {
 
       // Upload directly conforming files
       if (toUploadDirectly.length > 0) {
-        const formData = new FormData();
-        toUploadDirectly.forEach((f) => formData.append('files', f));
+        for (let i = 0; i < toUploadDirectly.length; i++) {
+          const f = toUploadDirectly[i];
+          setUploadProgress(`Uploading ${i + 1} of ${toUploadDirectly.length}...`);
+          const uploaded = await uploadSinglePortfolioFile(f);
 
-        const res = await fetch('/api/admin/portfolio/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (res.ok && data.uploaded) {
-          const newMedia: AdminPortfolioMedia[] = data.uploaded.map((u: any) => ({
-            url: u.url,
-            originalUrl: u.url,
-            type: u.type,
+          const newMedia: AdminPortfolioMedia = {
+            url: uploaded.url,
+            originalUrl: uploaded.url,
+            type: uploaded.type,
             caption: '',
             aspectRatio: postRatio,
-          }));
+          };
 
           setFormMedia((prev) => {
-            const updated = [...prev, ...newMedia];
+            const updated = [...prev, newMedia];
             if (!formCoverImage && updated.length > 0) {
               setFormCoverImage(updated[0].url);
             }
             return updated;
           });
+
+          if (uploaded.type === 'video') {
+            setFormVideoUrl((prev) => prev || uploaded.url);
+          }
         }
       }
 
@@ -256,80 +330,69 @@ export const PortfolioPostsManager: React.FC = () => {
         setActiveCropItem(toCrop[0]);
         setCropQueue(toCrop.slice(1));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('File upload error:', err);
+      setUploadError(err?.message || 'Failed to upload media. Please try again.');
     } finally {
       setIsUploading(false);
+      setUploadProgress('');
     }
   };
 
   // Crop complete handler (non-destructive)
   const handleCropComplete = async (croppedBlob: Blob, croppedDataUrl: string, originalSrc: string) => {
+    setIsUploading(true);
+    setUploadError('');
+    setUploadProgress('Uploading cropped photo...');
     try {
       if (activeCropItem?.index !== undefined) {
         // Re-cropping an existing photo
         const idx = activeCropItem.index;
-        const formData = new FormData();
-        const croppedFile = new File([croppedBlob], `crop-${Date.now()}.jpg`, { type: 'image/jpeg' });
-        formData.append('files', croppedFile);
+        const cropped = await uploadSinglePortfolioFile(croppedBlob, `crop-${Date.now()}.jpg`);
 
-        const res = await fetch('/api/admin/portfolio/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        const data = await res.json();
-        if (res.ok && data.uploaded?.[0]) {
-          const newUrl = data.uploaded[0].url;
-          setFormMedia((prev) => {
-            const updated = [...prev];
-            const old = updated[idx];
-            updated[idx] = {
-              ...old,
-              url: newUrl,
-              originalUrl: old.originalUrl || old.url,
-              aspectRatio: postRatio,
-            };
-            if (formCoverImage === old.url) {
-              setFormCoverImage(newUrl);
-            }
-            return updated;
-          });
-        }
-      } else if (activeCropItem?.file) {
-        // Upload both original file (for non-destructive editing) and cropped image
-        const formData = new FormData();
-        const croppedFile = new File([croppedBlob], `crop-${Date.now()}-${activeCropItem.file.name}`, { type: 'image/jpeg' });
-        formData.append('files', activeCropItem.file);
-        formData.append('files', croppedFile);
-
-        const res = await fetch('/api/admin/portfolio/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        const data = await res.json();
-        if (res.ok && data.uploaded) {
-          const origUpload = data.uploaded.find((u: any) => u.filename === activeCropItem.file?.name) || data.uploaded[0];
-          const cropUpload = data.uploaded.find((u: any) => u.filename !== activeCropItem.file?.name) || data.uploaded[1] || data.uploaded[0];
-
-          const newMedia: AdminPortfolioMedia = {
-            url: cropUpload.url,
-            originalUrl: origUpload.url,
-            type: 'photo',
-            caption: '',
+        setFormMedia((prev) => {
+          const updated = [...prev];
+          const old = updated[idx];
+          updated[idx] = {
+            ...old,
+            url: cropped.url,
+            originalUrl: old.originalUrl || old.url,
             aspectRatio: postRatio,
           };
-          setFormMedia((prev) => {
-            const updated = [...prev, newMedia];
-            if (!formCoverImage) {
-              setFormCoverImage(newMedia.url);
-            }
-            return updated;
-          });
-        }
+          if (formCoverImage === old.url) {
+            setFormCoverImage(cropped.url);
+          }
+          return updated;
+        });
+      } else if (activeCropItem?.file) {
+        // Upload both original file (for non-destructive editing) and cropped image
+        const [origUpload, cropUpload] = await Promise.all([
+          uploadSinglePortfolioFile(activeCropItem.file),
+          uploadSinglePortfolioFile(croppedBlob, `crop-${Date.now()}-${activeCropItem.file.name}`),
+        ]);
+
+        const newMedia: AdminPortfolioMedia = {
+          url: cropUpload.url,
+          originalUrl: origUpload.url,
+          type: 'photo',
+          caption: '',
+          aspectRatio: postRatio,
+        };
+
+        setFormMedia((prev) => {
+          const updated = [...prev, newMedia];
+          if (!formCoverImage) {
+            setFormCoverImage(newMedia.url);
+          }
+          return updated;
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error uploading cropped image:', err);
+      setUploadError(err?.message || 'Failed to upload cropped photo.');
     } finally {
+      setIsUploading(false);
+      setUploadProgress('');
       if (cropQueue.length > 0) {
         setActiveCropItem(cropQueue[0]);
         setCropQueue((prev) => prev.slice(1));
@@ -476,25 +539,26 @@ export const PortfolioPostsManager: React.FC = () => {
   const handleBatchFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsBatchUploading(true);
+    setBatchUploadError('');
+    setBatchUploadProgress('');
 
     try {
-      const formData = new FormData();
-      Array.from(files).forEach((f) => formData.append('files', f));
+      const fileArr = Array.from(files);
+      const newUrls: string[] = [];
 
-      const res = await fetch('/api/admin/portfolio/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (res.ok && data.uploaded) {
-        const newUrls = data.uploaded.map((u: any) => u.url);
-        setBatchPhotos((prev) => [...prev, ...newUrls]);
+      for (let i = 0; i < fileArr.length; i++) {
+        setBatchUploadProgress(`Uploading photo ${i + 1} of ${fileArr.length}...`);
+        const uploaded = await uploadSinglePortfolioFile(fileArr[i]);
+        newUrls.push(uploaded.url);
       }
-    } catch (err) {
+
+      setBatchPhotos((prev) => [...prev, ...newUrls]);
+    } catch (err: any) {
       console.error('Batch upload error:', err);
+      setBatchUploadError(err?.message || 'Failed to upload batch photos.');
     } finally {
       setIsBatchUploading(false);
+      setBatchUploadProgress('');
     }
   };
 
@@ -979,10 +1043,10 @@ export const PortfolioPostsManager: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="text-xs font-mono uppercase text-cream/90 font-medium">
-                      Carousel Photos ({formMedia.length} Photos)
+                      Carousel Media ({formMedia.length} Items)
                     </label>
                     <p className="text-[11px] text-cream/50">
-                      Upload photos. Non-conforming photos will prompt the crop tool automatically.
+                      Upload wedding photos or videos directly to Cloudflare R2 storage.
                     </p>
                   </div>
 
@@ -993,11 +1057,16 @@ export const PortfolioPostsManager: React.FC = () => {
                     className="px-3.5 py-1.5 bg-teal/15 hover:bg-teal text-teal hover:text-ink border border-teal/40 rounded-[8px] text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.97]"
                   >
                     {isUploading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>{uploadProgress || 'Uploading...'}</span>
+                      </>
                     ) : (
-                      <UploadCloud className="w-3.5 h-3.5" />
+                      <>
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        <span>Upload Media</span>
+                      </>
                     )}
-                    <span>Upload Photos</span>
                   </button>
                   <input
                     ref={fileInputRef}
@@ -1008,6 +1077,19 @@ export const PortfolioPostsManager: React.FC = () => {
                     onChange={(e) => handleFileUpload(e.target.files)}
                   />
                 </div>
+
+                {uploadError && (
+                  <div className="p-3 bg-red-950/60 border border-red-500/40 rounded-[8px] text-xs text-red-200 flex items-center justify-between">
+                    <span>{uploadError}</span>
+                    <button
+                      type="button"
+                      onClick={() => setUploadError('')}
+                      className="text-red-300 hover:text-white ml-2 text-xs cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
 
                 {/* Uploaded Photos Grid */}
                 {formMedia.length === 0 ? (
@@ -1210,11 +1292,16 @@ export const PortfolioPostsManager: React.FC = () => {
                     className="px-3.5 py-1.5 bg-teal text-ink font-semibold rounded-[8px] text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.97]"
                   >
                     {isBatchUploading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>{batchUploadProgress || 'Uploading batch...'}</span>
+                      </>
                     ) : (
-                      <UploadCloud className="w-3.5 h-3.5" />
+                      <>
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        <span>Select Batch Photos</span>
+                      </>
                     )}
-                    <span>Select Batch Photos</span>
                   </button>
                   <input
                     ref={batchFileInputRef}
@@ -1225,6 +1312,19 @@ export const PortfolioPostsManager: React.FC = () => {
                     onChange={(e) => handleBatchFileUpload(e.target.files)}
                   />
                 </div>
+
+                {batchUploadError && (
+                  <div className="p-3 bg-red-950/60 border border-red-500/40 rounded-[8px] text-xs text-red-200 flex items-center justify-between">
+                    <span>{batchUploadError}</span>
+                    <button
+                      type="button"
+                      onClick={() => setBatchUploadError('')}
+                      className="text-red-300 hover:text-white ml-2 text-xs cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
 
                 {batchPhotos.length === 0 ? (
                   <div

@@ -5,8 +5,11 @@ import path from 'path';
 
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET = process.env.R2_BUCKET;
-const R2_ENDPOINT = process.env.R2_ENDPOINT;
+const R2_BUCKET = process.env.R2_BUCKET || process.env.R2_BUCKET_NAME || 'everlens-media';
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+const R2_ENDPOINT =
+  process.env.R2_ENDPOINT ||
+  (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : undefined);
 
 export const isMockR2 =
   !R2_ACCESS_KEY_ID ||
@@ -93,6 +96,39 @@ export async function getPresignedUploadUrl(
 }
 
 /**
+ * Uploads a buffer directly to Cloudflare R2 or mock filesystem.
+ */
+export async function uploadObjectToR2(
+  key: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<{ key: string }> {
+  const cleanKey = key.replace(/^\/+/, '');
+  if (isMockR2) {
+    try {
+      const localUploadPath = path.join(process.cwd(), 'public', 'uploads', cleanKey);
+      const dir = path.dirname(localUploadPath);
+      await fs.promises.mkdir(dir, { recursive: true });
+      await fs.promises.writeFile(localUploadPath, buffer);
+    } catch (fsErr) {
+      console.warn('Mock filesystem write failed (e.g. read-only env):', fsErr);
+    }
+    return { key: cleanKey };
+  }
+
+  const bucket = getR2BucketName();
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: cleanKey,
+    Body: buffer,
+    ContentType: contentType,
+  });
+
+  await r2Client.send(command);
+  return { key: cleanKey };
+}
+
+/**
  * Generates a presigned GET URL for viewing or downloading media.
  * In production, streams directly from Cloudflare R2.
  * In development/mock mode, resolves to real local wedding photography/video assets.
@@ -102,8 +138,37 @@ export async function getPresignedDownloadUrl(
   expiresInSeconds: number = 3600,
   options?: { downloadFilename?: string; contentType?: string }
 ): Promise<string> {
-  // If the key is already a valid URL or root path, return it directly
-  if (key.startsWith('/') || key.startsWith('http://') || key.startsWith('https://')) {
+  // If the key is already an HTTP URL, check if it's an R2 URL that should be dynamically re-signed
+  if (key.startsWith('http://') || key.startsWith('https://')) {
+    if (key.includes('.r2.cloudflarestorage.com/')) {
+      try {
+        const urlObj = new URL(key);
+        const parts = urlObj.pathname.split('/').filter(Boolean);
+        if (parts.length >= 2) {
+          // parts[0] is bucket, remainder is key
+          const extractedKey = parts.slice(1).join('/');
+          const bucket = getR2BucketName();
+          const command = new GetObjectCommand({
+            Bucket: bucket,
+            Key: extractedKey,
+            ResponseContentDisposition: options?.downloadFilename
+              ? `attachment; filename="${options.downloadFilename.replace(/"/g, '')}"`
+              : undefined,
+            ResponseContentType: options?.contentType,
+          });
+          return await getSignedUrl(r2Client, command, {
+            expiresIn: expiresInSeconds,
+          });
+        }
+      } catch {
+        // Fallback to original URL
+      }
+    }
+    return key;
+  }
+
+  // If already a local root path (e.g. /portfolio/images/...), return as is
+  if (key.startsWith('/')) {
     return key;
   }
 
