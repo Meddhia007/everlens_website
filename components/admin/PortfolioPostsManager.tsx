@@ -97,6 +97,38 @@ export const PortfolioPostsManager: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Dynamic categories state
+  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([
+    { id: 'all', name: 'All', slug: 'all' },
+  ]);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/public/work-categories');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
+          const loaded = data.categories.map((c: any) => ({
+            id: c.id || c.slug || c._id,
+            name: c.name,
+            slug: c.slug,
+          }));
+          setCategories([
+            { id: 'all', name: 'All', slug: 'all' },
+            ...loaded,
+          ]);
+          // Default to first real category if formCategory is unset or default
+          if (loaded.length > 0) {
+            setFormCategory((prev) => (prev === 'photography' ? loaded[0].slug : prev));
+            setBatchCategory((prev) => (prev === 'photography' ? loaded[0].slug : prev));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load categories in admin:', err);
+    }
+  };
+
   // Fetch all portfolio posts
   const fetchPosts = async () => {
     setLoading(true);
@@ -117,6 +149,7 @@ export const PortfolioPostsManager: React.FC = () => {
 
   useEffect(() => {
     fetchPosts();
+    fetchCategories();
   }, []);
 
   // Open single post modal (new or edit)
@@ -321,6 +354,20 @@ export const PortfolioPostsManager: React.FC = () => {
     setIsDeleting(true);
 
     try {
+      if (postToDelete.id === 'ALL') {
+        const res = await fetch('/api/admin/portfolio', {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          setPosts([]);
+          setPostToDelete(null);
+        } else {
+          const data = await res.json();
+          alert(data.error || 'Failed to delete all posts');
+        }
+        return;
+      }
+
       const res = await fetch(`/api/admin/portfolio/${postToDelete.id}`, {
         method: 'DELETE',
       });
@@ -511,17 +558,9 @@ export const PortfolioPostsManager: React.FC = () => {
 
   const filteredPosts = posts.filter((p) => {
     if (categoryFilter !== 'all') {
-      const pCat = p.category?.toLowerCase() || '';
-      const filterCat = categoryFilter.toLowerCase();
-      if (filterCat === 'films' || filterCat === 'film') {
-        if (pCat !== 'film' && pCat !== 'films' && pCat !== 'video') return false;
-      } else if (filterCat === 'photography') {
-        if (pCat !== 'photography' && pCat !== 'photo') return false;
-      } else if (filterCat === 'traditional') {
-        if (!pCat.includes('traditional') && !pCat.includes('wteya') && !pCat.includes('traditionnel')) return false;
-      } else if (filterCat === 'editorial') {
-        if (!pCat.includes('editorial') && !pCat.includes('éditorial')) return false;
-      } else if (pCat !== filterCat) {
+      const pCat = (p.category || '').toLowerCase().trim();
+      const filterCat = categoryFilter.toLowerCase().trim();
+      if (pCat !== filterCat && !pCat.includes(filterCat) && !filterCat.includes(pCat)) {
         return false;
       }
     }
@@ -555,6 +594,19 @@ export const PortfolioPostsManager: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Delete All Posts Button */}
+          {posts.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPostToDelete({ id: 'ALL', title: 'ALL portfolio posts' })}
+              className="flex items-center gap-2 px-3 py-2 border border-red-500/30 text-red-400 hover:bg-red-950/20 rounded-xs text-xs font-medium transition-colors cursor-pointer"
+              title="Delete all portfolio posts from homepage"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete All Posts</span>
+            </button>
+          )}
+
           {/* Batch Splitter Tool Button */}
           <button
             type="button"
@@ -581,19 +633,19 @@ export const PortfolioPostsManager: React.FC = () => {
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-ink-2 p-4 rounded-xs border border-cream/10">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
-          {['all', 'photography', 'films', 'traditional', 'editorial'].map((cat) => (
+          {categories.map((cat) => (
             <button
-              key={cat}
+              key={cat.id}
               type="button"
-              onClick={() => setCategoryFilter(cat)}
+              onClick={() => setCategoryFilter(cat.slug)}
               className={clsx(
                 'px-3 py-1.5 rounded-2xs text-xs font-sans capitalize transition-colors cursor-pointer',
-                categoryFilter === cat
+                categoryFilter.toLowerCase() === cat.slug.toLowerCase()
                   ? 'bg-teal text-ink font-semibold shadow-xs'
                   : 'text-cream/60 hover:text-cream hover:bg-ink-3'
               )}
             >
-              {cat === 'all' ? 'All' : cat === 'films' ? 'Films' : cat === 'traditional' ? 'Traditional' : cat === 'editorial' ? 'Editorial' : cat}
+              {cat.name}
             </button>
           ))}
         </div>
@@ -879,10 +931,13 @@ export const PortfolioPostsManager: React.FC = () => {
                     onChange={(e) => setFormCategory(e.target.value)}
                     className="w-full bg-ink-3 border border-cream/15 rounded-[8px] p-2 text-xs text-cream focus:border-teal outline-none"
                   >
-                    <option value="photography">Photography</option>
-                    <option value="film">Film Reel (Video)</option>
-                    <option value="traditional">Traditional / Wteya</option>
-                    <option value="editorial">Editorial</option>
+                    {categories
+                      .filter((c) => c.slug !== 'all')
+                      .map((c) => (
+                        <option key={c.id} value={c.slug}>
+                          {c.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -1114,9 +1169,13 @@ export const PortfolioPostsManager: React.FC = () => {
                     onChange={(e) => setBatchCategory(e.target.value)}
                     className="w-full bg-ink-3 border border-cream/15 rounded-[8px] p-2 text-xs text-cream focus:border-teal outline-none"
                   >
-                    <option value="photography">Photography</option>
-                    <option value="traditional">Traditional / Wteya</option>
-                    <option value="editorial">Editorial</option>
+                    {categories
+                      .filter((c) => c.slug !== 'all')
+                      .map((c) => (
+                        <option key={c.id} value={c.slug}>
+                          {c.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -1247,13 +1306,27 @@ export const PortfolioPostsManager: React.FC = () => {
       {/* Confirm Delete Modal */}
       <ConfirmDeleteModal
         isOpen={!!postToDelete}
-        title={postToDelete?.isGallery ? "Remove from Public Portfolio?" : "Delete Portfolio Post"}
+        title={
+          postToDelete?.id === 'ALL'
+            ? 'Delete All Portfolio Posts?'
+            : postToDelete?.isGallery
+            ? 'Remove from Public Portfolio?'
+            : 'Delete Portfolio Post'
+        }
         description={
-          postToDelete?.isGallery
+          postToDelete?.id === 'ALL'
+            ? 'Are you sure you want to delete all portfolio posts from the homepage? This will completely clear the portfolio so you can start fresh.'
+            : postToDelete?.isGallery
             ? `Are you sure you want to remove "${postToDelete.title}" from the public homepage portfolio? This media file will remain safely preserved in the client's private gallery.`
             : `Are you sure you want to delete "${postToDelete?.title}"? This action cannot be undone.`
         }
-        confirmLabel={postToDelete?.isGallery ? "Remove from Portfolio" : "Delete"}
+        confirmLabel={
+          postToDelete?.id === 'ALL'
+            ? 'Delete All Posts'
+            : postToDelete?.isGallery
+            ? 'Remove from Portfolio'
+            : 'Delete'
+        }
         isDeleting={isDeleting}
         onConfirm={confirmDeletePost}
         onCancel={() => setPostToDelete(null)}

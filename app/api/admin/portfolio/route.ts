@@ -277,3 +277,30 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error?.message || 'Failed to update orders' }, { status: 500 });
   }
 }
+
+// DELETE: Delete all portfolio posts or unpublish all gallery media from portfolio
+export async function DELETE(request: NextRequest) {
+  try {
+    const admin = await authenticateAdmin(request);
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
+    }
+
+    try {
+      await connectToDatabase();
+      await PortfolioPost.deleteMany({});
+      await MediaItem.updateMany({ isPublicPortfolio: true }, { isPublicPortfolio: false });
+    } catch (dbErr) {
+      console.warn('MongoDB deleteMany failed, updating memoryStore:', dbErr);
+    }
+
+    if (memoryStore) {
+      memoryStore.portfolioPosts = [];
+    }
+
+    return NextResponse.json({ success: true, message: 'All portfolio posts deleted successfully' });
+  } catch (error: any) {
+    console.error('Failed to delete all portfolio posts:', error);
+    return NextResponse.json({ error: error?.message || 'Failed to delete all posts' }, { status: 500 });
+  }
+}

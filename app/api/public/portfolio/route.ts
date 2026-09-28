@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { PortfolioPost } from '@/models/PortfolioPost';
 import { MediaItem } from '@/models/MediaItem';
-// Register Gallery model for Mongoose populate
 import '@/models/Gallery';
 import { getPresignedDownloadUrl } from '@/lib/r2';
-import { initialPortfolioPosts } from '@/lib/initialData';
 import { memoryStore } from '@/lib/memoryStore';
 
 export const dynamic = 'force-dynamic';
@@ -89,17 +87,7 @@ export async function GET(request: NextRequest) {
       );
 
       // 2. Fetch standard PortfolioPost collection items
-      let portfolioPosts = await PortfolioPost.find().sort({ order: 1, createdAt: -1 }).lean();
-
-      // Seed initial posts if both collections are empty
-      if (portfolioPosts.length === 0 && publicMediaPosts.length === 0) {
-        try {
-          await PortfolioPost.insertMany(initialPortfolioPosts);
-          portfolioPosts = await PortfolioPost.find().sort({ order: 1, createdAt: -1 }).lean();
-        } catch {
-          portfolioPosts = initialPortfolioPosts as any;
-        }
-      }
+      const portfolioPosts = await PortfolioPost.find().sort({ order: 1, createdAt: -1 }).lean();
 
       const formattedPortfolioPosts = portfolioPosts.map((item: any) => ({
         ...item,
@@ -126,7 +114,7 @@ export async function GET(request: NextRequest) {
 
     let posts = (memoryStore?.portfolioPosts && memoryStore.portfolioPosts.length > 0)
       ? memoryStore.portfolioPosts
-      : (initialPortfolioPosts as any);
+      : [];
 
     posts = filterPostsByCategory(posts, category);
 
