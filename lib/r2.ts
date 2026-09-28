@@ -6,10 +6,12 @@ import path from 'path';
 function cleanEnv(val?: string): string | undefined {
   if (!val) return undefined;
   let clean = val.trim();
-  clean = clean.replace(/^["']|["']$/g, '').trim();
+  clean = clean.replace(/^[<"']|[>"']$/g, '').trim();
+  clean = clean.replace(/[<>]/g, '').trim();
   if (clean.includes('=')) {
     clean = clean.substring(clean.indexOf('=') + 1).trim();
-    clean = clean.replace(/^["']|["']$/g, '').trim();
+    clean = clean.replace(/^[<"']|[>"']$/g, '').trim();
+    clean = clean.replace(/[<>]/g, '').trim();
   }
   return clean || undefined;
 }
@@ -18,11 +20,20 @@ const R2_ACCESS_KEY_ID = cleanEnv(process.env.R2_ACCESS_KEY_ID);
 const R2_SECRET_ACCESS_KEY = cleanEnv(process.env.R2_SECRET_ACCESS_KEY);
 const R2_BUCKET = cleanEnv(process.env.R2_BUCKET) || cleanEnv(process.env.R2_BUCKET_NAME) || 'everlens-media';
 const R2_ACCOUNT_ID = cleanEnv(process.env.R2_ACCOUNT_ID);
-let R2_ENDPOINT =
-  cleanEnv(process.env.R2_ENDPOINT) ||
-  (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : undefined);
-if (R2_ENDPOINT && !R2_ENDPOINT.startsWith('http://') && !R2_ENDPOINT.startsWith('https://')) {
-  R2_ENDPOINT = `https://${R2_ENDPOINT}`;
+let R2_ENDPOINT = cleanEnv(process.env.R2_ENDPOINT);
+
+if (!R2_ENDPOINT && R2_ACCOUNT_ID) {
+  R2_ENDPOINT = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+}
+if (R2_ENDPOINT) {
+  R2_ENDPOINT = R2_ENDPOINT.replace(/[<>]/g, '').replace(/\/+$/, '').trim();
+  if (!R2_ENDPOINT.startsWith('http://') && !R2_ENDPOINT.startsWith('https://')) {
+    if (!R2_ENDPOINT.includes('.')) {
+      R2_ENDPOINT = `https://${R2_ENDPOINT}.r2.cloudflarestorage.com`;
+    } else {
+      R2_ENDPOINT = `https://${R2_ENDPOINT}`;
+    }
+  }
 }
 
 export const isMockR2 =
@@ -189,7 +200,8 @@ export async function getPresignedDownloadUrl(
   if (key.startsWith('http://') || key.startsWith('https://')) {
     if (key.includes('.r2.cloudflarestorage.com/')) {
       try {
-        const urlObj = new URL(key);
+        const sanitizedKey = key.replace(/[<>]/g, '');
+        const urlObj = new URL(sanitizedKey);
         const parts = urlObj.pathname.split('/').filter(Boolean);
         if (parts.length >= 2) {
           // parts[0] is bucket, remainder is key
