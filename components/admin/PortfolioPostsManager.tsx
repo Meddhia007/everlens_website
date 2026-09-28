@@ -265,6 +265,13 @@ export const PortfolioPostsManager: React.FC = () => {
       }
     }
 
+    // If file is > 4.5MB and direct storage failed, fail gracefully with clear Cloudflare R2 instruction
+    if (file.size > 4.5 * 1024 * 1024) {
+      throw new Error(
+        `Video (${(file.size / (1024 * 1024)).toFixed(1)}MB) could not be uploaded. Please verify your Cloudflare R2 Account ID in Vercel and ensure CORS is enabled on the everlens-media bucket.`
+      );
+    }
+
     // 2. Fallback: Server-side multipart upload (for files <= 4.5MB)
     const formData = new FormData();
     formData.append('file', file, filename);
@@ -286,6 +293,66 @@ export const PortfolioPostsManager: React.FC = () => {
       r2Key: uploaded.r2Key || uploaded.url,
       type: uploaded.type || mediaType,
     };
+  };
+
+  // Client-side smart image optimizer for high-res camera photos (> 3.5MB)
+  const optimizeImageIfNeeded = async (file: File): Promise<File> => {
+    if (!file.type.startsWith('image/') || file.size <= 3.5 * 1024 * 1024) {
+      return file;
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const maxDim = 2560; // 2.5K Ultra Retina crisp resolution
+        let width = img.naturalWidth;
+        let height = img.naturalHeight;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob && blob.size < file.size) {
+              const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.jpg';
+              const optimized = new File([blob], cleanName, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(optimized);
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          0.88
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+      img.src = objectUrl;
+    });
   };
 
   // Upload files for Single Post with Instagram aspect ratio check
@@ -331,7 +398,11 @@ export const PortfolioPostsManager: React.FC = () => {
       // Upload directly conforming files
       if (toUploadDirectly.length > 0) {
         for (let i = 0; i < toUploadDirectly.length; i++) {
-          const f = toUploadDirectly[i];
+          let f = toUploadDirectly[i];
+          setUploadProgress(`Processing ${i + 1} of ${toUploadDirectly.length}...`);
+          if (f.type.startsWith('image/')) {
+            f = await optimizeImageIfNeeded(f);
+          }
           setUploadProgress(`Uploading ${i + 1} of ${toUploadDirectly.length}...`);
           const uploaded = await uploadSinglePortfolioFile(f);
 
@@ -397,9 +468,13 @@ export const PortfolioPostsManager: React.FC = () => {
           return updated;
         });
       } else if (activeCropItem?.file) {
+        let origFile = activeCropItem.file;
+        if (origFile.type.startsWith('image/')) {
+          origFile = await optimizeImageIfNeeded(origFile);
+        }
         // Upload both original file (for non-destructive editing) and cropped image
         const [origUpload, cropUpload] = await Promise.all([
-          uploadSinglePortfolioFile(activeCropItem.file),
+          uploadSinglePortfolioFile(origFile),
           uploadSinglePortfolioFile(croppedBlob, `crop-${Date.now()}-${activeCropItem.file.name}`),
         ]);
 
@@ -579,8 +654,13 @@ export const PortfolioPostsManager: React.FC = () => {
       const newUrls: string[] = [];
 
       for (let i = 0; i < fileArr.length; i++) {
+        let f = fileArr[i];
+        setBatchUploadProgress(`Preparing photo ${i + 1} of ${fileArr.length}...`);
+        if (f.type.startsWith('image/')) {
+          f = await optimizeImageIfNeeded(f);
+        }
         setBatchUploadProgress(`Uploading photo ${i + 1} of ${fileArr.length}...`);
-        const uploaded = await uploadSinglePortfolioFile(fileArr[i]);
+        const uploaded = await uploadSinglePortfolioFile(f);
         newUrls.push(uploaded.url);
       }
 
