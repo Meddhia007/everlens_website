@@ -230,10 +230,10 @@ export const EquipmentSection: React.FC = () => {
                       <IconComponent className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-serif text-lg sm:text-2xl text-cream font-medium group-hover:text-cream transition-colors truncate">
+                      <h3 className="font-sans font-semibold text-lg sm:text-2xl text-cream tracking-tight group-hover:text-cream transition-colors truncate lining-nums">
                         {item.name}
                       </h3>
-                      <p className="text-xs text-cream/50 font-mono mt-0.5 truncate">
+                      <p className="text-xs text-cream/55 font-sans mt-0.5 truncate tracking-wide">
                         {item.role}
                       </p>
                     </div>

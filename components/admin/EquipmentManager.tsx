@@ -305,7 +305,7 @@ export const EquipmentManager: React.FC<EquipmentManagerProps> = ({ initialEquip
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-serif text-lg text-white font-medium leading-tight">
+                      <h3 className="font-sans font-semibold text-lg text-white leading-tight lining-nums">
                         {item.name}
                       </h3>
                       {!item.active && (
