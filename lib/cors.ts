@@ -25,7 +25,15 @@ export function getAllowedOrigins(): string[] {
     }
   }
 
-  // 3. Local development origins (only outside of production)
+  // 3. Vercel deployment variables (automatically provided by Vercel platform)
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    allowed.add(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/$/, '')}`);
+  }
+  if (process.env.VERCEL_URL) {
+    allowed.add(`https://${process.env.VERCEL_URL.replace(/\/$/, '')}`);
+  }
+
+  // 4. Local development origins (only outside of production)
   if (process.env.NODE_ENV !== 'production') {
     allowed.add('http://localhost:3000');
     allowed.add('http://127.0.0.1:3000');
@@ -35,12 +43,51 @@ export function getAllowedOrigins(): string[] {
 }
 
 /**
- * Checks whether an incoming request origin matches the whitelist.
+ * Checks whether an incoming request origin matches the whitelist or same-host origin.
  */
-export function isOriginAllowed(origin: string | null | undefined): boolean {
+export function isOriginAllowed(
+  origin: string | null | undefined,
+  requestOrHost?: NextRequest | string | null
+): boolean {
   if (!origin) return false;
-  const allowedOrigins = getAllowedOrigins();
-  return allowedOrigins.includes(origin);
+
+  try {
+    const originUrl = new URL(origin);
+
+    // 1. Same-Origin Check: If request is from the same host, always permit it
+    if (requestOrHost) {
+      let host: string | null = null;
+      if (typeof requestOrHost === 'string') {
+        host = requestOrHost;
+      } else if ('headers' in requestOrHost) {
+        host =
+          requestOrHost.headers.get('x-forwarded-host') ||
+          requestOrHost.headers.get('host');
+      }
+
+      if (host) {
+        const hostWithoutPort = host.split(':')[0];
+        if (originUrl.host === host || originUrl.hostname === hostWithoutPort) {
+          return true;
+        }
+      }
+    }
+
+    // 2. Vercel deployment domains (e.g. everlens-website.vercel.app, *.vercel.app)
+    if (originUrl.hostname.endsWith('.vercel.app')) {
+      return true;
+    }
+
+    // 3. Explicit whitelist
+    const allowedOrigins = getAllowedOrigins();
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes(originUrl.origin)) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 }
 
 /**
@@ -50,7 +97,7 @@ export function isOriginAllowed(origin: string | null | undefined): boolean {
 export function getCorsHeaders(request: NextRequest): Record<string, string> {
   const origin = request.headers.get('origin');
   
-  if (!origin || !isOriginAllowed(origin)) {
+  if (!origin || !isOriginAllowed(origin, request)) {
     return {};
   }
 
@@ -75,7 +122,7 @@ export function handleCorsPreflight(request: NextRequest): NextResponse {
     return new NextResponse(null, { status: 204 });
   }
 
-  if (!isOriginAllowed(origin)) {
+  if (!isOriginAllowed(origin, request)) {
     return NextResponse.json(
       { error: 'CORS policy: Request origin is not allowed.' },
       { status: 403 }

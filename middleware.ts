@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
     }
 
     const origin = request.headers.get('origin');
-    if (origin && !isOriginAllowed(origin)) {
+    if (origin && !isOriginAllowed(origin, request)) {
       return NextResponse.json(
         { error: 'CORS policy: Request origin is not allowed.' },
         { status: 403 }
@@ -90,7 +90,7 @@ export async function middleware(request: NextRequest) {
 
   const response = NextResponse.next();
   const origin = request.headers.get('origin');
-  if (origin && isOriginAllowed(origin)) {
+  if (origin && isOriginAllowed(origin, request)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
     response.headers.set('Vary', 'Origin');
