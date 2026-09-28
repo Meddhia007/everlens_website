@@ -19,15 +19,24 @@ export const DashboardHeaderActions: React.FC = () => {
         <span>New Gallery</span>
       </button>
 
-      <Link
-        href="/"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-xs text-[#9EABA2] hover:text-[#F4F3ED] transition-colors px-3 py-2 rounded-[8px] border border-white/[0.08] hover:bg-white/[0.04]"
+      <button
+        type="button"
+        onClick={async () => {
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('everlens_admin_active');
+          }
+          try {
+            await fetch('/api/auth/admin/logout', { method: 'POST' });
+          } catch (err) {
+            console.error(err);
+          }
+          window.location.href = '/';
+        }}
+        className="inline-flex items-center gap-1.5 text-xs text-[#9EABA2] hover:text-[#43B19F] transition-colors px-3 py-2 rounded-[8px] border border-white/[0.08] hover:bg-white/[0.04] cursor-pointer"
       >
-        <span>Live Site</span>
+        <span>Return to Website</span>
         <ExternalLink className="w-3 h-3 text-[#9EABA2]" />
-      </Link>
+      </button>
     </div>
   );
 };

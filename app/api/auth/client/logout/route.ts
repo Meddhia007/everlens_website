@@ -7,6 +7,13 @@ export async function POST() {
     message: 'Client signed out successfully.',
   });
 
+  response.cookies.set({
+    name: CLIENT_COOKIE_NAME,
+    value: '',
+    path: '/',
+    maxAge: 0,
+    expires: new Date(0),
+  });
   response.cookies.delete(CLIENT_COOKIE_NAME);
 
   return response;

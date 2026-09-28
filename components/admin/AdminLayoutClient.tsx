@@ -17,6 +17,18 @@ export const AdminLayoutClient: React.FC<AdminLayoutClientProps> = ({
   const pathname = usePathname();
   const isLoginPage = pathname === '/admin/login';
 
+  React.useEffect(() => {
+    if (isLoginPage) return;
+    // Check if the current browser tab has an active login session
+    const active = typeof window !== 'undefined' ? sessionStorage.getItem('everlens_admin_active') : '1';
+    if (!active) {
+      // Tab was closed and reopened: expire cookie and redirect to login
+      fetch('/api/auth/admin/logout', { method: 'POST' }).finally(() => {
+        window.location.href = '/admin/login';
+      });
+    }
+  }, [isLoginPage]);
+
   if (isLoginPage) {
     return <>{children}</>;
   }

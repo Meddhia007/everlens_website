@@ -27,6 +27,15 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (pathname !== '/portal/login') {
+      const active = typeof window !== 'undefined' ? sessionStorage.getItem('everlens_client_active') : '1';
+      if (!active) {
+        // Tab was closed and reopened: expire cookie and redirect to login
+        fetch('/api/auth/client/logout', { method: 'POST' }).finally(() => {
+          window.location.href = '/portal/login';
+        });
+        return;
+      }
+
       fetch('/api/auth/session')
         .then((res) => res.json())
         .then((data) => {
@@ -43,12 +52,15 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const handleLogout = async () => {
+  const handleLogout = async (redirectTarget: string = '/portal/login') => {
     try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('everlens_client_active');
+      }
       await fetch('/api/auth/client/logout', { method: 'POST' });
-      window.location.href = '/portal/login';
+      window.location.href = redirectTarget;
     } catch {
-      window.location.href = '/portal/login';
+      window.location.href = redirectTarget;
     }
   };
 
@@ -153,16 +165,17 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* Bottom Exit Links */}
         <div className="p-5 border-t border-[#EAE8DA]/10 space-y-1.5 shrink-0 bg-[#171D1C]">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 px-3 py-2 text-[12px] text-[#EAE8DA]/60 hover:text-[#43B19F] transition-colors rounded-xs cursor-pointer"
+          <button
+            type="button"
+            onClick={() => handleLogout('/')}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-[#EAE8DA]/60 hover:text-[#43B19F] transition-colors rounded-xs cursor-pointer text-left"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span>Return to Website</span>
-          </Link>
+          </button>
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => handleLogout('/portal/login')}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-[#EAE8DA]/60 hover:text-[#EAE8DA] hover:bg-[#1D2422] transition-colors rounded-xs cursor-pointer text-left"
           >
             <LogOut className="w-3.5 h-3.5 text-[#43B19F]" />
@@ -192,16 +205,17 @@ function PortalLayoutInner({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="text-[11px] font-sans text-[#EAE8DA]/60 hover:text-[#43B19F] transition-colors"
-            >
-              Website
-            </Link>
             <button
               type="button"
-              onClick={handleLogout}
-              className="text-[11px] font-sans text-[#43B19F] hover:text-[#EAE8DA] transition-colors"
+              onClick={() => handleLogout('/')}
+              className="text-[11px] font-sans text-[#EAE8DA]/60 hover:text-[#43B19F] transition-colors cursor-pointer"
+            >
+              Website
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLogout('/portal/login')}
+              className="text-[11px] font-sans text-[#43B19F] hover:text-[#EAE8DA] transition-colors cursor-pointer"
             >
               Sign Out
             </button>

@@ -42,6 +42,11 @@ function ClientLoginForm() {
         return;
       }
 
+      // Mark session as active in this browser tab
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('everlens_client_active', '1');
+      }
+
       // Hard navigation to ensure middleware updates request headers (x-gallery-id) cleanly
       window.location.href = callbackUrl;
     } catch {

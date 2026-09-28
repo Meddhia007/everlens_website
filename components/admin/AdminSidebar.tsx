@@ -169,16 +169,25 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ adminEmail }) => {
           <span>New Gallery</span>
         </button>
 
-        {/* View Live Site */}
-        <Link
-          href="/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-between w-full px-3 py-2 text-xs text-[#9EABA2] hover:text-[#F4F3ED] hover:bg-white/[0.04] rounded-[8px] transition-colors"
+        {/* Return to Website & Exit */}
+        <button
+          type="button"
+          onClick={async () => {
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('everlens_admin_active');
+            }
+            try {
+              await fetch('/api/auth/admin/logout', { method: 'POST' });
+            } catch (err) {
+              console.error(err);
+            }
+            window.location.href = '/';
+          }}
+          className="flex items-center justify-between w-full px-3 py-2 text-xs text-[#9EABA2] hover:text-[#43B19F] hover:bg-white/[0.04] rounded-[8px] transition-colors cursor-pointer text-left"
         >
-          <span>View Live Site</span>
+          <span>Return to Website</span>
           <ExternalLink className="w-3 h-3 text-[#9EABA2]" />
-        </Link>
+        </button>
 
         {/* Admin Account & Sign Out */}
         <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">

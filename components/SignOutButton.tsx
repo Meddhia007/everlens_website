@@ -22,6 +22,13 @@ export const SignOutButton: React.FC<SignOutButtonProps> = ({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      if (typeof window !== 'undefined') {
+        if (type === 'admin') {
+          sessionStorage.removeItem('everlens_admin_active');
+        } else {
+          sessionStorage.removeItem('everlens_client_active');
+        }
+      }
       const endpoint = type === 'admin' ? '/api/auth/admin/logout' : '/api/auth/client/logout';
       await fetch(endpoint, { method: 'POST' });
       const target = redirectUrl || (type === 'admin' ? '/admin/login' : '/portal/login');

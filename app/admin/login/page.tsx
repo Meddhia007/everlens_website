@@ -42,6 +42,11 @@ function AdminLoginForm() {
         return;
       }
 
+      // Mark session as active in this browser tab
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('everlens_admin_active', '1');
+      }
+
       // Hard navigation to ensure middleware and server components re-evaluate cookies cleanly
       window.location.href = callbackUrl;
     } catch {
