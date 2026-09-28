@@ -1,6 +1,18 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
+function getCleanMongoUri(): string | undefined {
+  let uri = process.env.MONGODB_URI?.trim();
+  if (!uri) return undefined;
+  if (uri.startsWith('MONGODB_URI=')) {
+    uri = uri.slice('MONGODB_URI='.length).trim();
+  }
+  if ((uri.startsWith('"') && uri.endsWith('"')) || (uri.startsWith("'") && uri.endsWith("'"))) {
+    uri = uri.slice(1, -1).trim();
+  }
+  return uri;
+}
+
+const MONGODB_URI = getCleanMongoUri();
 
 interface MongooseCache {
   conn: typeof mongoose | null;
