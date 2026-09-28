@@ -187,6 +187,23 @@ export const PortfolioPostsManager: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
+  // Helper to safely parse JSON responses without triggering Safari WebKit SyntaxError
+  const safeJsonParse = async (res: Response): Promise<any> => {
+    try {
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        if (res.status === 413) {
+          return { error: 'File size exceeds server payload limit (4.5MB). Please enable Cloudflare R2 bucket CORS for direct uploads.' };
+        }
+        return { error: `Server response (${res.status}): ${text.slice(0, 150) || res.statusText}` };
+      }
+    } catch (e: any) {
+      return { error: e?.message || 'Failed to read server response' };
+    }
+  };
+
   // Unified robust file uploader: requests Cloudflare R2 presigned URL and PUTs directly,
   // with fallback to server-side PutObjectCommand if needed.
   const uploadSinglePortfolioFile = async (
@@ -198,6 +215,7 @@ export const PortfolioPostsManager: React.FC = () => {
     const mediaType: 'photo' | 'video' = isVideo ? 'video' : 'photo';
 
     // 1. Try presigned direct PUT to Cloudflare R2 (bypasses Vercel 4.5MB limit)
+    let presignData: any = null;
     try {
       const presignRes = await fetch('/api/admin/portfolio/presigned', {
         method: 'POST',
@@ -208,30 +226,43 @@ export const PortfolioPostsManager: React.FC = () => {
           fileSize: file.size,
         }),
       });
+      presignData = await safeJsonParse(presignRes);
+    } catch (presignErr) {
+      console.warn('Presigned URL request failed:', presignErr);
+    }
 
-      if (presignRes.ok) {
-        const presignData = await presignRes.json();
-        const { uploadUrl, r2Key, viewUrl } = presignData;
+    if (presignData?.uploadUrl) {
+      const { uploadUrl, r2Key, viewUrl } = presignData;
 
-        // Perform direct PUT to R2 / mock endpoint
-        const putRes = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
-          },
-          body: file,
+      try {
+        // Direct PUT via XMLHttpRequest (standard reliable binary transfer in Safari)
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('PUT', uploadUrl, true);
+          if (file.type) {
+            xhr.setRequestHeader('Content-Type', file.type);
+          }
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Storage PUT rejected (HTTP ${xhr.status}).`));
+            }
+          };
+          xhr.onerror = () => {
+            reject(new Error('Network or CORS error connecting to storage bucket.'));
+          };
+          xhr.send(file);
         });
 
-        if (putRes.ok) {
-          return {
-            url: viewUrl || uploadUrl,
-            r2Key,
-            type: mediaType,
-          };
-        }
+        return {
+          url: viewUrl || uploadUrl,
+          r2Key,
+          type: mediaType,
+        };
+      } catch (putErr) {
+        console.warn('Direct PUT to storage failed, attempting server-side upload fallback:', putErr);
       }
-    } catch (presignErr) {
-      console.warn('Direct presigned PUT failed or blocked, attempting server-side upload fallback:', presignErr);
     }
 
     // 2. Fallback: Server-side multipart upload (for files <= 4.5MB)
@@ -243,9 +274,10 @@ export const PortfolioPostsManager: React.FC = () => {
       body: formData,
     });
 
-    const uploadData = await uploadRes.json();
+    const uploadData = await safeJsonParse(uploadRes);
     if (!uploadRes.ok || !uploadData.uploaded?.[0]) {
-      throw new Error(uploadData.error || `Failed to upload "${filename}". Check file format and size.`);
+      const errMsg = uploadData.error || `Failed to upload "${filename}". Please check file format and size.`;
+      throw new Error(errMsg);
     }
 
     const uploaded = uploadData.uploaded[0];

@@ -1,15 +1,29 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
 import path from 'path';
 
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET = process.env.R2_BUCKET || process.env.R2_BUCKET_NAME || 'everlens-media';
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const R2_ENDPOINT =
-  process.env.R2_ENDPOINT ||
+function cleanEnv(val?: string): string | undefined {
+  if (!val) return undefined;
+  let clean = val.trim();
+  clean = clean.replace(/^["']|["']$/g, '').trim();
+  if (clean.includes('=')) {
+    clean = clean.substring(clean.indexOf('=') + 1).trim();
+    clean = clean.replace(/^["']|["']$/g, '').trim();
+  }
+  return clean || undefined;
+}
+
+const R2_ACCESS_KEY_ID = cleanEnv(process.env.R2_ACCESS_KEY_ID);
+const R2_SECRET_ACCESS_KEY = cleanEnv(process.env.R2_SECRET_ACCESS_KEY);
+const R2_BUCKET = cleanEnv(process.env.R2_BUCKET) || cleanEnv(process.env.R2_BUCKET_NAME) || 'everlens-media';
+const R2_ACCOUNT_ID = cleanEnv(process.env.R2_ACCOUNT_ID);
+let R2_ENDPOINT =
+  cleanEnv(process.env.R2_ENDPOINT) ||
   (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : undefined);
+if (R2_ENDPOINT && !R2_ENDPOINT.startsWith('http://') && !R2_ENDPOINT.startsWith('https://')) {
+  R2_ENDPOINT = `https://${R2_ENDPOINT}`;
+}
 
 export const isMockR2 =
   !R2_ACCESS_KEY_ID ||
@@ -82,10 +96,10 @@ export async function getPresignedUploadUrl(
   }
 
   const bucket = getR2BucketName();
+  // Do not lock ContentType into AWS SigV4 signature so browser can send matching or auto-detected mime
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
-    ContentType: contentType,
   });
 
   const uploadUrl = await getSignedUrl(r2Client, command, {
@@ -93,6 +107,39 @@ export async function getPresignedUploadUrl(
   });
 
   return { uploadUrl, key };
+}
+
+let hasAttemptedCorsConfig = false;
+
+/**
+ * Attempts to automatically apply open CORS on the Cloudflare R2 bucket.
+ */
+export async function ensureR2CorsConfigured(): Promise<boolean> {
+  if (isMockR2 || hasAttemptedCorsConfig) return true;
+  hasAttemptedCorsConfig = true;
+  try {
+    const bucket = getR2BucketName();
+    await r2Client.send(
+      new PutBucketCorsCommand({
+        Bucket: bucket,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedHeaders: ['*'],
+              AllowedMethods: ['GET', 'PUT', 'HEAD', 'POST', 'DELETE'],
+              AllowedOrigins: ['*'],
+              ExposeHeaders: ['ETag'],
+              MaxAgeSeconds: 3600,
+            },
+          ],
+        },
+      })
+    );
+    return true;
+  } catch (err: any) {
+    console.warn('[R2] Auto-CORS notice (may require Cloudflare dashboard CORS rule):', err?.message);
+    return false;
+  }
 }
 
 /**

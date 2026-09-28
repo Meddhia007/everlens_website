@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getPresignedUploadUrl, getPresignedDownloadUrl } from '@/lib/r2';
+import { getPresignedUploadUrl, getPresignedDownloadUrl, ensureR2CorsConfigured } from '@/lib/r2';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
 import { validateUploadMetadata } from '@/lib/upload-validator';
 import { handleCorsPreflight } from '@/lib/cors';
@@ -24,6 +24,9 @@ export async function POST(request: NextRequest) {
     if (!admin && process.env.NODE_ENV === 'production') {
       return NextResponse.json({ error: 'Unauthorized studio access' }, { status: 401 });
     }
+
+    // Proactively apply CORS to the Cloudflare R2 bucket if not already set
+    await ensureR2CorsConfigured().catch(() => {});
 
     const body = await request.json().catch(() => ({}));
     const { filename, contentType, fileSize } = body;
