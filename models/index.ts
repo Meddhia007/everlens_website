@@ -1,5 +1,8 @@
 export { Gallery } from './Gallery';
-export type { IGallery, GalleryStatus } from './Gallery';
+export type { IGallery, GalleryStatus, ProductionStage, IStageHistoryItem } from './Gallery';
+
+export { PhotoComment } from './PhotoComment';
+export type { IPhotoComment, PhotoCommentStatus } from './PhotoComment';
 
 export { MediaItem } from './MediaItem';
 export type { IMediaItem, MediaType, MediaCategory } from './MediaItem';

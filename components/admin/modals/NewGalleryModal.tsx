@@ -38,6 +38,7 @@ export const NewGalleryModal: React.FC<NewGalleryModalProps> = ({
   const [weddingDate, setWeddingDate] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [photoLimit, setPhotoLimit] = useState<number>(50);
   const [status, setStatus] = useState<GalleryStatus>('draft');
   const [expirationDate, setExpirationDate] = useState('');
 
@@ -158,6 +159,7 @@ export const NewGalleryModal: React.FC<NewGalleryModalProps> = ({
           weddingDate,
           clientEmail,
           password,
+          photoLimit,
           status,
           expirationDate: expirationDate || undefined,
           guestPin: guestPin || undefined,
@@ -397,6 +399,26 @@ Guest PIN: ${createdResult.guestPin || 'N/A'}`;
                   <p className="text-[10px] text-[#9EABA2]/70 font-sans">
                     Defaults to 1 year after wedding date.
                   </p>
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="block text-xs font-medium text-[#9EABA2]">
+                    Print Selection Limit <span className="text-teal">*</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      required
+                      value={photoLimit}
+                      onChange={(e) => setPhotoLimit(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      className="w-32 bg-[#182220] text-white font-mono border border-white/10 rounded-[8px] px-3.5 py-2 text-xs focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-all"
+                    />
+                    <span className="text-xs text-[#9EABA2] font-sans">
+                      Archival prints allowed for client album curation (default 50).
+                    </span>
+                  </div>
                 </div>
               </div>
 

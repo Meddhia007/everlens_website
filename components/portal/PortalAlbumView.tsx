@@ -20,7 +20,7 @@ interface PortalAlbumViewProps {
 export const PortalAlbumView: React.FC<PortalAlbumViewProps> = ({
   selectedItems,
   locked,
-  maxCap = 40,
+  maxCap = 50,
   onContinueSelecting,
   onSubmitSelection,
   isSubmitting = false,

@@ -33,7 +33,7 @@ export default async function ClientPortalPage() {
 
     // Fetch Gallery metadata
     const gallery = await Gallery.findById(session.galleryId)
-      .select('coupleNames weddingDate status expirationDate')
+      .select('coupleNames weddingDate status expirationDate photoLimit productionStage stageHistory')
       .lean();
 
     // Restrict access if gallery is archived or past expirationDate
@@ -161,6 +161,12 @@ export default async function ClientPortalPage() {
       <PortalSanctuaryView
         coupleNames={session.coupleNames}
         weddingDate={weddingDate}
+        photoLimit={gallery?.photoLimit || 50}
+        productionStage={gallery?.productionStage || 'files_uploaded'}
+        stageHistory={(gallery?.stageHistory || []).map((h) => ({
+          stage: h.stage,
+          reachedAt: h.reachedAt ? new Date(h.reachedAt).toISOString() : new Date().toISOString(),
+        }))}
         initialMedia={mediaList}
         initialLocked={isPrintLocked}
         initialSubmittedAt={printSubmittedAt}
@@ -176,6 +182,9 @@ export default async function ClientPortalPage() {
     <PortalSanctuaryView
       coupleNames={session.coupleNames}
       weddingDate={weddingDate}
+      photoLimit={50}
+      productionStage="files_uploaded"
+      stageHistory={[]}
       initialMedia={mediaList}
       initialLocked={isPrintLocked}
       initialSubmittedAt={printSubmittedAt}

@@ -2,12 +2,29 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export type GalleryStatus = 'draft' | 'active' | 'archived';
 
+export type ProductionStage =
+  | 'files_uploaded'
+  | 'editing_photos'
+  | 'photos_ready'
+  | 'editing_film'
+  | 'film_ready'
+  | 'album_production'
+  | 'delivered';
+
+export interface IStageHistoryItem {
+  stage: ProductionStage;
+  reachedAt: Date;
+}
+
 export interface IGallery extends Document {
   coupleNames: string;
   weddingDate: Date;
   clientEmail: string;
   passwordHash: string;
   status: GalleryStatus;
+  photoLimit: number;
+  productionStage: ProductionStage;
+  stageHistory: IStageHistoryItem[];
   expirationDate?: Date;
   guestPin?: string;
   guestLinkToken?: string;
@@ -45,6 +62,37 @@ const GallerySchema = new Schema<IGallery>(
       default: 'draft',
       index: true,
     },
+    photoLimit: {
+      type: Number,
+      default: 50,
+      min: 1,
+    },
+    productionStage: {
+      type: String,
+      enum: [
+        'files_uploaded',
+        'editing_photos',
+        'photos_ready',
+        'editing_film',
+        'film_ready',
+        'album_production',
+        'delivered',
+      ],
+      default: 'files_uploaded',
+      index: true,
+    },
+    stageHistory: [
+      {
+        stage: {
+          type: String,
+          required: true,
+        },
+        reachedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     expirationDate: {
       type: Date,
     },

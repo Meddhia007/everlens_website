@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { PortalMediaItem } from './PortalLightbox';
-import { Play, Film, Image as ImageIcon, Download } from 'lucide-react';
+import { Play, Film, Image as ImageIcon, Download, Flag } from 'lucide-react';
 import { HeartToggle } from './HeartToggle';
 
 interface EditorialMasonryGridProps {
@@ -17,6 +17,7 @@ interface EditorialMasonryGridProps {
   isCapReached?: boolean;
   onCapReachedNotice?: () => void;
   isGuest?: boolean;
+  onCommentPhoto?: (item: PortalMediaItem) => void;
 }
 
 export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
@@ -31,6 +32,7 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
   isCapReached = false,
   onCapReachedNotice,
   isGuest = false,
+  onCommentPhoto,
 }) => {
   if (items.length === 0) {
     return (
@@ -83,8 +85,8 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
                 isSelected ? 'ring-2 ring-[#43B19F] ring-offset-2 ring-offset-[#0F1413]' : ''
               }`}
             >
-              {/* Quick direct download button on top-left of each photo/video */}
-              <div className="absolute top-3 left-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              {/* Top-left action buttons (download, comment/flag issue) */}
+              <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <a
                   href={`/api/portal/media/${item._id}/download`}
                   download={item.originalFilename}
@@ -94,6 +96,19 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
                 >
                   <Download className="w-3.5 h-3.5" />
                 </a>
+                {!isGuest && item.type === 'photo' && onCommentPhoto && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCommentPhoto(item);
+                    }}
+                    className="w-8 h-8 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur-xs text-white hover:text-[#43B19F] flex items-center justify-center transition-colors shadow-md cursor-pointer"
+                    title="Flag an issue / comment on this photo"
+                  >
+                    <Flag className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Heart / Select Toggle Overlay on top-right for Photos */}

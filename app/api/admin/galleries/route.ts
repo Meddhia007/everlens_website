@@ -56,6 +56,9 @@ export async function GET(request: NextRequest) {
     const enrichedGalleries = galleries.map((g) => ({
       ...g,
       _id: g._id.toString(),
+      photoLimit: g.photoLimit ?? 50,
+      productionStage: g.productionStage || 'files_uploaded',
+      stageHistory: g.stageHistory || [],
       mediaCount: mediaCountMap.get(g._id.toString()) || 0,
       printCount: printMap.get(g._id.toString())?.count || 0,
       printLocked: printMap.get(g._id.toString())?.locked || false,
@@ -85,6 +88,8 @@ export async function POST(request: NextRequest) {
       weddingDate,
       clientEmail,
       status = 'draft',
+      photoLimit,
+      productionStage = 'files_uploaded',
       expirationDate,
       password,
       guestPin,
@@ -97,6 +102,24 @@ export async function POST(request: NextRequest) {
     const cleanGuestPin = sanitizeString(guestPin, 10);
     const cleanGuestLinkToken = sanitizeString(guestLinkToken, 100);
     const cleanPassword = sanitizeString(password, 100);
+
+    const parsedPhotoLimit =
+      typeof photoLimit === 'number' && photoLimit > 0
+        ? Math.floor(photoLimit)
+        : parseInt(photoLimit, 10) > 0
+        ? Math.floor(parseInt(photoLimit, 10))
+        : 50;
+
+    const validStages = [
+      'files_uploaded',
+      'editing_photos',
+      'photos_ready',
+      'editing_film',
+      'film_ready',
+      'album_production',
+      'delivered',
+    ];
+    const initialStage = validStages.includes(productionStage) ? productionStage : 'files_uploaded';
 
     // Validation
     if (!cleanCoupleNames) {
@@ -138,6 +161,9 @@ export async function POST(request: NextRequest) {
       clientEmail: cleanClientEmail,
       passwordHash,
       status: cleanStatus,
+      photoLimit: parsedPhotoLimit,
+      productionStage: initialStage,
+      stageHistory: [{ stage: initialStage, reachedAt: new Date() }],
       expirationDate: calculatedExpiry,
       guestPin: assignedGuestPin,
       guestLinkToken: assignedGuestToken,
@@ -152,6 +178,9 @@ export async function POST(request: NextRequest) {
           weddingDate: gallery.weddingDate,
           clientEmail: gallery.clientEmail,
           status: gallery.status,
+          photoLimit: gallery.photoLimit || 50,
+          productionStage: gallery.productionStage || 'files_uploaded',
+          stageHistory: gallery.stageHistory || [],
           expirationDate: gallery.expirationDate,
           guestPin: gallery.guestPin,
           guestLinkToken: gallery.guestLinkToken,

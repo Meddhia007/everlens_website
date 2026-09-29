@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { PrintSelection } from '@/models/PrintSelection';
+import { Gallery } from '@/models/Gallery';
 import { authorizeGalleryAccess, authorizeMediaAccess } from '@/lib/gallery-auth';
 import mongoose from 'mongoose';
 
@@ -16,13 +17,17 @@ export async function GET(request: NextRequest) {
     const { session } = auth;
     await connectToDatabase();
 
-    const selection = await PrintSelection.findOne({ galleryId: session.galleryId }).lean();
+    const [selection, gallery] = await Promise.all([
+      PrintSelection.findOne({ galleryId: session.galleryId }).lean(),
+      Gallery.findById(session.galleryId).select('photoLimit').lean(),
+    ]);
 
     return NextResponse.json({
       locked: !!selection?.locked,
       submittedAt: selection?.submittedAt || null,
       mediaItemIds: (selection?.mediaItemIds || []).map((id) => id.toString()),
       count: (selection?.mediaItemIds || []).length,
+      photoLimit: gallery?.photoLimit || 50,
     });
   } catch (error: any) {
     console.error('Failed to get print selection:', error);
@@ -82,12 +87,15 @@ export async function POST(request: NextRequest) {
 
     const targetSelected = typeof selected === 'boolean' ? selected : !isAlreadySelected;
 
+    const gallery = await Gallery.findById(session.galleryId).select('photoLimit').lean();
+    const photoLimit = gallery?.photoLimit || 50;
+
     if (targetSelected) {
       if (!isAlreadySelected) {
-        // Enforce hard cap at 50 server-side
-        if (currentIds.length >= 50) {
+        // Enforce hard cap server-side based on gallery's photoLimit
+        if (currentIds.length >= photoLimit) {
           return NextResponse.json(
-            { error: 'Print limit reached — remove one to add another' },
+            { error: `Print limit reached (${photoLimit} photographs) — remove one to add another` },
             { status: 400 }
           );
         }
@@ -119,6 +127,7 @@ export async function POST(request: NextRequest) {
       success: true,
       selected: targetSelected,
       count: selection.mediaItemIds.length,
+      photoLimit,
       mediaItemIds: selection.mediaItemIds.map((id) => id.toString()),
     });
   } catch (error: any) {

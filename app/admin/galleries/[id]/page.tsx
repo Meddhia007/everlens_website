@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { StatusDot } from '@/components/admin/StatusDot';
 import { BulkUploader } from '@/components/admin/BulkUploader';
 import { MediaGrid, MediaItemData } from '@/components/admin/MediaGrid';
-import { GalleryStatus } from '@/models/Gallery';
+import { GalleryStatus, ProductionStage } from '@/models/Gallery';
 import { formatEditorialDate } from '@/lib/date';
 import {
   ArrowLeft,
@@ -29,6 +29,11 @@ import {
   BookOpen,
   Download,
   CheckCircle2,
+  ChevronRight,
+  ChevronLeft,
+  Clock,
+  Mail,
+  Sparkles,
 } from 'lucide-react';
 
 interface GalleryDetail {
@@ -37,6 +42,9 @@ interface GalleryDetail {
   weddingDate: string;
   clientEmail: string;
   status: GalleryStatus;
+  photoLimit: number;
+  productionStage: ProductionStage;
+  stageHistory?: Array<{ stage: ProductionStage; reachedAt: string }>;
   expirationDate?: string;
   guestPin?: string;
   guestLinkToken?: string;
@@ -65,6 +73,9 @@ export default function GalleryDetailPage() {
   const [weddingDate, setWeddingDate] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [status, setStatus] = useState<GalleryStatus>('draft');
+  const [photoLimit, setPhotoLimit] = useState<number>(50);
+  const [productionStage, setProductionStage] = useState<ProductionStage>('files_uploaded');
+  const [isUpdatingStage, setIsUpdatingStage] = useState(false);
   const [expirationDate, setExpirationDate] = useState('');
   const [guestPin, setGuestPin] = useState('');
   const [guestLinkToken, setGuestLinkToken] = useState('');
@@ -108,6 +119,8 @@ export default function GalleryDetailPage() {
         setWeddingDate(g.weddingDate ? g.weddingDate.split('T')[0] : '');
         setClientEmail(g.clientEmail);
         setStatus(g.status);
+        setPhotoLimit(g.photoLimit ?? 50);
+        setProductionStage(g.productionStage || 'files_uploaded');
         setExpirationDate(g.expirationDate ? g.expirationDate.split('T')[0] : '');
         setGuestPin(g.guestPin || '');
         setGuestLinkToken(g.guestLinkToken || '');
@@ -166,6 +179,102 @@ export default function GalleryDetailPage() {
     setTimeout(() => setCopiedPin(false), 2000);
   };
 
+  const PRODUCTION_STAGES: {
+    id: ProductionStage;
+    label: string;
+    clientLabel: string;
+    description: string;
+    isEmailMilestone: boolean;
+  }[] = [
+    {
+      id: 'files_uploaded',
+      label: 'Files Uploaded',
+      clientLabel: 'Files Uploaded',
+      description: 'Raw footage and master files secured in studio storage',
+      isEmailMilestone: false,
+    },
+    {
+      id: 'editing_photos',
+      label: 'Editing Photos',
+      clientLabel: 'Editing your photos',
+      description: 'Color grading, exposure calibration & curation',
+      isEmailMilestone: false,
+    },
+    {
+      id: 'photos_ready',
+      label: 'Photos Ready',
+      clientLabel: 'Photos Ready',
+      description: 'Full master photo gallery ready to view & share',
+      isEmailMilestone: true,
+    },
+    {
+      id: 'editing_film',
+      label: 'Editing Film',
+      clientLabel: 'Editing your film',
+      description: 'Timeline cut, sound design & audio mastering',
+      isEmailMilestone: false,
+    },
+    {
+      id: 'film_ready',
+      label: 'Film Ready',
+      clientLabel: 'Film Ready',
+      description: 'Cinematic film finalized and streaming in portal',
+      isEmailMilestone: true,
+    },
+    {
+      id: 'album_production',
+      label: 'Album Production',
+      clientLabel: 'Album in Production',
+      description: 'Handcrafted prints typesetting and physical binding',
+      isEmailMilestone: false,
+    },
+    {
+      id: 'delivered',
+      label: 'Delivered',
+      clientLabel: 'Delivered',
+      description: 'Complete collection archived and delivered to client',
+      isEmailMilestone: true,
+    },
+  ];
+
+  const handleUpdateStage = async (newStage: ProductionStage) => {
+    if (isUpdatingStage || newStage === productionStage) return;
+    setIsUpdatingStage(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/galleries/${galleryId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productionStage: newStage }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to update stage');
+        setIsUpdatingStage(false);
+        return;
+      }
+      setProductionStage(newStage);
+      setGallery((prev) => (prev ? { ...prev, ...data.gallery } : null));
+
+      const milestoneLabels: Record<string, string> = {
+        photos_ready: 'Photos Ready',
+        film_ready: 'Film Ready',
+        delivered: 'Delivered',
+      };
+
+      if (['photos_ready', 'film_ready', 'delivered'].includes(newStage)) {
+        setSuccessMsg(`Stage advanced to "${milestoneLabels[newStage]}" — milestone notification email sent to client!`);
+      } else {
+        setSuccessMsg(`Production stage updated.`);
+      }
+      setTimeout(() => setSuccessMsg(null), 4000);
+      setIsUpdatingStage(false);
+    } catch {
+      setError('Network error updating production stage.');
+      setIsUpdatingStage(false);
+    }
+  };
+
   // Submit Changes
   const handleSaveChanges = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,6 +291,8 @@ export default function GalleryDetailPage() {
           weddingDate,
           clientEmail,
           status,
+          photoLimit,
+          productionStage,
           expirationDate: expirationDate || undefined,
           guestPin: guestPin || undefined,
           guestLinkToken: guestLinkToken || undefined,
@@ -395,7 +506,7 @@ export default function GalleryDetailPage() {
               </div>
               <div className="text-lg font-serif text-white">
                 {gallery.printCount || mediaItems.filter((m) => m.isPrintSelected).length}
-                <span className="text-[11px] font-sans text-[#9EABA2] font-normal ml-1">/ 50 selected</span>
+                <span className="text-[11px] font-sans text-[#9EABA2] font-normal ml-1">/ {gallery.photoLimit || 50} selected</span>
               </div>
             </div>
 
@@ -436,6 +547,153 @@ export default function GalleryDetailPage() {
             <span>{successMsg}</span>
           </div>
         )}
+
+        {/* PRODUCTION STATUS TRACKER */}
+        <div className="bg-[#131918] border border-white/[0.08] rounded-xs p-6 sm:p-7 shadow-xl space-y-6 text-left">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-3.5 h-3.5 text-teal" />
+                <h2 className="text-xs font-mono uppercase tracking-wider text-teal font-semibold">
+                  Production Status Tracker
+                </h2>
+              </div>
+              <p className="text-xs text-[#9EABA2] font-sans">
+                Milestone pipeline tracked directly in client portal. Changes record a timestamp.
+              </p>
+            </div>
+
+            {/* Stepper Controls: Backward, Forward, or Dropdown */}
+            {(() => {
+              const currentStageIndex = PRODUCTION_STAGES.findIndex((s) => s.id === productionStage);
+              return (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isUpdatingStage || currentStageIndex <= 0}
+                    onClick={() => {
+                      if (currentStageIndex > 0) {
+                        handleUpdateStage(PRODUCTION_STAGES[currentStageIndex - 1].id);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xs border border-white/10 hover:border-white/20 bg-[#182220] text-xs font-sans text-[#9EABA2] hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    title="Move backward to previous stage in case of mistake"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Previous</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isUpdatingStage || currentStageIndex >= PRODUCTION_STAGES.length - 1}
+                    onClick={() => {
+                      if (currentStageIndex < PRODUCTION_STAGES.length - 1) {
+                        handleUpdateStage(PRODUCTION_STAGES[currentStageIndex + 1].id);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xs bg-teal hover:bg-teal/90 text-[#0B0F0E] text-xs font-sans font-medium transition-all shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <span>Advance Stage</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="relative">
+                    <select
+                      value={productionStage}
+                      disabled={isUpdatingStage}
+                      onChange={(e) => handleUpdateStage(e.target.value as ProductionStage)}
+                      className="bg-[#182220] border border-white/10 rounded-xs px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-teal font-sans cursor-pointer disabled:opacity-50"
+                    >
+                      {PRODUCTION_STAGES.map((s, idx) => (
+                        <option key={s.id} value={s.id}>
+                          {idx + 1}. {s.label} {s.isEmailMilestone ? '✉️' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Stepper Pipeline */}
+          {(() => {
+            const currentStageIndex = PRODUCTION_STAGES.findIndex((s) => s.id === productionStage);
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                {PRODUCTION_STAGES.map((s, idx) => {
+                  const isCurrent = s.id === productionStage;
+                  const isPast = idx < currentStageIndex;
+                  const historyItem = gallery.stageHistory?.find((h) => h.stage === s.id);
+
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => handleUpdateStage(s.id)}
+                      className={`p-3 rounded-xs border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                        isCurrent
+                          ? 'bg-teal/15 border-teal shadow-[0_0_15px_rgba(67,177,159,0.2)]'
+                          : isPast
+                          ? 'bg-[#182220] border-teal/30 hover:border-teal/50'
+                          : 'bg-[#182220]/50 border-white/[0.06] hover:border-white/20 opacity-70'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                          <span className="text-[10px] font-mono text-[#9EABA2]">
+                            Step {idx + 1}
+                          </span>
+                          {isPast ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-teal shrink-0" />
+                          ) : isCurrent ? (
+                            <span className="w-2 h-2 rounded-full bg-teal animate-pulse shrink-0" />
+                          ) : (
+                            <span className="w-2 h-2 rounded-full bg-white/20 shrink-0" />
+                          )}
+                        </div>
+                        <div className="font-serif text-sm text-white font-medium flex items-center gap-1">
+                          <span>{s.label}</span>
+                          {s.isEmailMilestone && (
+                            <span title="Milestone triggers email to client" className="inline-flex">
+                              <Mail className="w-3 h-3 text-teal shrink-0" />
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-[#9EABA2] font-sans mt-1 leading-snug line-clamp-2">
+                          {s.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-2.5 pt-2 border-t border-white/[0.06] text-[10px] font-mono text-[#9EABA2]">
+                        {historyItem?.reachedAt ? (
+                          <span className="text-teal font-medium">
+                            {new Date(historyItem.reachedAt).toLocaleDateString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                            })}
+                          </span>
+                        ) : isPast ? (
+                          <span className="text-teal/80">Completed</span>
+                        ) : isCurrent ? (
+                          <span className="text-teal font-semibold uppercase">In Progress</span>
+                        ) : (
+                          <span className="text-white/30">Upcoming</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          <div className="text-[11px] text-[#9EABA2] flex items-center gap-2 pt-1 border-t border-white/[0.06]">
+            <Mail className="w-3.5 h-3.5 text-teal shrink-0" />
+            <span>
+              <strong>Photos Ready</strong>, <strong>Film Ready</strong>, and <strong>Delivered</strong> milestones automatically send an email to <code className="text-teal">{gallery.clientEmail}</code> via Resend. Earlier editing stages update the client portal silently.
+            </span>
+          </div>
+        </div>
 
         {/* SECTION 1: SETTINGS & METADATA FORM */}
         <form onSubmit={handleSaveChanges} className="space-y-6 text-left">
@@ -562,6 +820,26 @@ export default function GalleryDetailPage() {
                 <p className="text-[11px] text-[#9EABA2]/70 font-sans">
                   Leave empty if gallery should have perpetual access.
                 </p>
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2">
+                <label htmlFor="photoLimit" className="block text-xs font-medium text-[#9EABA2]">
+                  Print Selection Limit
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="photoLimit"
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={photoLimit}
+                    onChange={(e) => setPhotoLimit(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-32 bg-[#182220] text-white font-mono border border-white/10 rounded-xs px-3 py-2 text-xs focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-all"
+                  />
+                  <span className="text-xs text-[#9EABA2] font-sans">
+                    Admin-controlled limit for the client&apos;s print selection album (default 50).
+                  </span>
+                </div>
               </div>
             </div>
           </div>

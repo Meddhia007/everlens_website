@@ -47,6 +47,9 @@ export async function GET(
       gallery: {
         ...gallery,
         _id: gallery._id.toString(),
+        photoLimit: gallery.photoLimit ?? 50,
+        productionStage: gallery.productionStage || 'files_uploaded',
+        stageHistory: gallery.stageHistory || [],
         mediaCount,
         printCount: printSelection?.mediaItemIds?.length || 0,
         printLocked: printSelection?.locked || false,
@@ -84,6 +87,8 @@ export async function PATCH(
       weddingDate,
       clientEmail,
       status,
+      photoLimit,
+      productionStage,
       expirationDate,
       guestPin,
       guestLinkToken,
@@ -130,6 +135,55 @@ export async function PATCH(
     if (guestPin !== undefined) gallery.guestPin = sanitizeString(guestPin, 10) || undefined;
     if (guestLinkToken !== undefined) gallery.guestLinkToken = sanitizeString(guestLinkToken, 100) || undefined;
 
+    if (photoLimit !== undefined) {
+      const parsedLimit = parseInt(photoLimit, 10);
+      if (!isNaN(parsedLimit) && parsedLimit > 0) {
+        gallery.photoLimit = parsedLimit;
+      }
+    }
+
+    const validStages = [
+      'files_uploaded',
+      'editing_photos',
+      'photos_ready',
+      'editing_film',
+      'film_ready',
+      'album_production',
+      'delivered',
+    ];
+
+    if (productionStage && validStages.includes(productionStage)) {
+      if (gallery.productionStage !== productionStage) {
+        gallery.productionStage = productionStage;
+
+        if (!Array.isArray(gallery.stageHistory)) {
+          gallery.stageHistory = [];
+        }
+        gallery.stageHistory.push({
+          stage: productionStage,
+          reachedAt: new Date(),
+        } as any);
+
+        // Check for email notification milestones (photos_ready, film_ready, delivered)
+        const emailMilestones = ['photos_ready', 'film_ready', 'delivered'];
+        if (emailMilestones.includes(productionStage) && gallery.clientEmail) {
+          const origin = request.nextUrl.origin || 'https://everlensweddings.com';
+          const portalUrl = `${origin}/portal`;
+          // Import email sender dynamically or use from lib/email
+          import('@/lib/email').then(({ sendProductionStageEmail }) => {
+            sendProductionStageEmail({
+              to: gallery.clientEmail,
+              coupleNames: gallery.coupleNames,
+              stage: productionStage as any,
+              portalUrl,
+            }).catch((err) => {
+              console.error('Failed to send milestone email:', err);
+            });
+          });
+        }
+      }
+    }
+
     // If new password is provided, re-hash it
     if (newPassword && typeof newPassword === 'string' && newPassword.trim()) {
       gallery.passwordHash = await hashPassword(newPassword.trim());
@@ -145,6 +199,9 @@ export async function PATCH(
         weddingDate: gallery.weddingDate,
         clientEmail: gallery.clientEmail,
         status: gallery.status,
+        photoLimit: gallery.photoLimit || 50,
+        productionStage: gallery.productionStage || 'files_uploaded',
+        stageHistory: gallery.stageHistory || [],
         expirationDate: gallery.expirationDate,
         guestPin: gallery.guestPin,
         guestLinkToken: gallery.guestLinkToken,

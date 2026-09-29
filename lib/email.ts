@@ -461,3 +461,291 @@ export async function sendStudioInquiryNotificationEmail({
   }
 }
 
+export type MilestoneStage = 'photos_ready' | 'film_ready' | 'delivered';
+
+export interface SendProductionStageEmailParams {
+  to: string;
+  coupleNames: string;
+  stage: MilestoneStage;
+  portalUrl?: string;
+}
+
+/**
+ * Sends a transactional milestone notification email to the client when their production stage advances
+ * to a meaningful milestone (photos_ready, film_ready, delivered).
+ */
+export async function sendProductionStageEmail({
+  to,
+  coupleNames,
+  stage,
+  portalUrl = 'https://everlensweddings.com/portal',
+}: SendProductionStageEmailParams): Promise<{ success: boolean; id?: string; simulated?: boolean }> {
+  const milestoneConfig: Record<
+    MilestoneStage,
+    { subject: string; title: string; lead: string; buttonText: string }
+  > = {
+    photos_ready: {
+      subject: `Your Wedding Photographs are Ready (${coupleNames})`,
+      title: 'Your Master Photographs are Ready',
+      lead: 'We are thrilled to announce that your wedding photographs have completed our comprehensive color grading and editorial curation. Your master gallery is now ready to explore and share in your private client sanctuary.',
+      buttonText: 'View Your Photographs',
+    },
+    film_ready: {
+      subject: `Your Cinematic Wedding Film is Ready (${coupleNames})`,
+      title: 'Your Wedding Film is Ready',
+      lead: 'Your cinematic wedding film has completed final audio master engineering, sound design, and color grading. You can now stream and experience your film directly inside your sanctuary.',
+      buttonText: 'Watch Your Wedding Film',
+    },
+    delivered: {
+      subject: `Your Wedding Collection is Complete & Delivered (${coupleNames})`,
+      title: 'Your Wedding Collection is Delivered',
+      lead: 'Every element of your bespoke wedding collection has been finalized and delivered. We invite you to explore your complete archive, curate your heirloom print album, and download your high-resolution masters.',
+      buttonText: 'Open Your Complete Sanctuary',
+    },
+  };
+
+  const config = milestoneConfig[stage];
+  if (!config) return { success: false };
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${config.subject}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #FAF7F2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #16211D;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #FAF7F2; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" max-width="600" style="max-width: 600px; background-color: #FAF7F2; border: 1px solid rgba(22, 33, 29, 0.15); padding: 40px; border-radius: 2px;">
+          <!-- Header Logo Lockup -->
+          <tr>
+            <td align="center" style="padding-bottom: 24px; border-bottom: 1px solid rgba(22, 33, 29, 0.1);">
+              <div style="font-size: 18px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: #16211D;">
+                EverLens <span style="color: #168B8D;">Weddings</span>
+              </div>
+              <div style="font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(22, 33, 29, 0.5); margin-top: 4px;">
+                Client Delivery Sanctuary
+              </div>
+            </td>
+          </tr>
+
+          <!-- Message Body -->
+          <tr>
+            <td style="padding-top: 32px; padding-bottom: 28px;">
+              <h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-weight: normal; color: #16211D; margin: 0 0 16px 0; line-height: 1.3;">
+                ${config.title}
+              </h1>
+              <p style="font-size: 14px; line-height: 1.6; color: rgba(22, 33, 29, 0.85); margin: 0 0 16px 0;">
+                Dear ${coupleNames},
+              </p>
+              <p style="font-size: 14px; line-height: 1.6; color: rgba(22, 33, 29, 0.85); margin: 0 0 24px 0;">
+                ${config.lead}
+              </p>
+
+              <!-- Action Button -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 32px 0;">
+                <tr>
+                  <td align="center" style="border-radius: 2px; background-color: #168B8D;">
+                    <a href="${portalUrl}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 13px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #FAF7F2; text-decoration: none; border-radius: 2px;">
+                      ${config.buttonText}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Notice Box -->
+              <div style="background-color: #F4ECE1; border-left: 3px solid #168B8D; padding: 14px 18px; margin-top: 24px; font-size: 12px; line-height: 1.5; color: rgba(22, 33, 29, 0.85);">
+                <strong>Preservation Quality:</strong> All files have been mastered to our highest archival standards. You can access your gallery from any device using your client credentials.
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top: 24px; border-top: 1px solid rgba(22, 33, 29, 0.1); font-size: 11px; color: rgba(22, 33, 29, 0.5); text-align: center; line-height: 1.5;">
+              EverLens Wedding Photography & Cinematography<br>
+              Questions or requests? Reply directly to this email.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  if (!RESEND_API_KEY) {
+    console.log(`\n======================================================`);
+    console.log(`[EMAIL SIMULATION] (RESEND_API_KEY not configured)`);
+    console.log(`To: ${to}`);
+    console.log(`Subject: ${config.subject}`);
+    console.log(`Couple: ${coupleNames}`);
+    console.log(`Stage: ${stage}`);
+    console.log(`Portal Link: ${portalUrl}`);
+    console.log(`======================================================\n`);
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const resend = new Resend(RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: config.subject,
+      html: htmlContent,
+    });
+
+    if (error) {
+      console.error('Resend email error:', error);
+      return { success: false };
+    }
+
+    return { success: true, id: data?.id };
+  } catch (err) {
+    console.error('Failed to send production milestone email:', err);
+    return { success: false };
+  }
+}
+
+export interface SendPhotoCommentNotificationParams {
+  coupleNames: string;
+  galleryId: string;
+  mediaItemId: string;
+  commentText: string;
+  photoUrl?: string;
+  submittedAt?: Date;
+}
+
+/**
+ * Sends a notification email to the studio admin when a client submits feedback / flags a photo.
+ */
+export async function sendPhotoCommentNotificationEmail({
+  coupleNames,
+  galleryId,
+  mediaItemId,
+  commentText,
+  photoUrl,
+  submittedAt = new Date(),
+}: SendPhotoCommentNotificationParams): Promise<{ success: boolean; id?: string; simulated?: boolean }> {
+  const formattedDate = new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  }).format(submittedAt);
+
+  const subject = `Client Photo Feedback: ${coupleNames}`;
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #FAF7F2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #16211D;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #FAF7F2; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" max-width="600" style="max-width: 600px; background-color: #FAF7F2; border: 1px solid rgba(22, 33, 29, 0.15); padding: 40px; border-radius: 2px;">
+          <!-- Header Logo Lockup -->
+          <tr>
+            <td align="center" style="padding-bottom: 24px; border-bottom: 1px solid rgba(22, 33, 29, 0.1);">
+              <div style="font-size: 18px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: #16211D;">
+                EverLens <span style="color: #168B8D;">Weddings</span>
+              </div>
+              <div style="font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(22, 33, 29, 0.5); margin-top: 4px;">
+                Client Feedback Dispatch
+              </div>
+            </td>
+          </tr>
+
+          <!-- Message Body -->
+          <tr>
+            <td style="padding-top: 32px; padding-bottom: 24px;">
+              <h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 22px; font-weight: normal; color: #16211D; margin: 0 0 8px 0; line-height: 1.3;">
+                New Photo Comment / Issue Flag
+              </h1>
+              <p style="font-size: 12px; color: rgba(22, 33, 29, 0.5); margin: 0 0 24px 0;">
+                Submitted by <strong>${coupleNames}</strong> on ${formattedDate}
+              </p>
+
+              <!-- Feedback Box -->
+              <div style="background-color: #F4ECE1; border-left: 3px solid #168B8D; padding: 16px 18px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; color: #16211D;">
+                <strong style="display: block; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #168B8D;">Client Note:</strong>
+                ${commentText.replace(/\n/g, '<br>')}
+              </div>
+
+              ${
+                photoUrl
+                  ? `
+              <div style="margin-bottom: 24px; text-align: center;">
+                <img src="${photoUrl}" alt="Flagged photo" style="max-width: 100%; max-height: 320px; border-radius: 4px; border: 1px solid rgba(22, 33, 29, 0.1);" />
+              </div>
+              `
+                  : ''
+              }
+
+              <!-- Action Button -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 28px 0 0 0;">
+                <tr>
+                  <td align="center" style="border-radius: 2px; background-color: #168B8D;">
+                    <a href="https://everlensweddings.com/admin/feedback" target="_blank" style="display: inline-block; padding: 12px 24px; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #FAF7F2; text-decoration: none; border-radius: 2px;">
+                      Open Feedback Dashboard
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top: 24px; border-top: 1px solid rgba(22, 33, 29, 0.1); font-size: 11px; color: rgba(22, 33, 29, 0.5); text-align: center; line-height: 1.5;">
+              EverLens Wedding Photography & Cinematography Backstage System
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  if (!RESEND_API_KEY) {
+    console.log(`\n======================================================`);
+    console.log(`[EMAIL SIMULATION] (RESEND_API_KEY not configured)`);
+    console.log(`To: ${STUDIO_EMAIL}`);
+    console.log(`Subject: ${subject}`);
+    console.log(`Couple: ${coupleNames}`);
+    console.log(`Gallery ID: ${galleryId}`);
+    console.log(`Media Item ID: ${mediaItemId}`);
+    console.log(`Comment: ${commentText}`);
+    console.log(`======================================================\n`);
+    return { success: true, simulated: true };
+  }
+
+  try {
+    const resend = new Resend(RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: STUDIO_EMAIL,
+      subject,
+      html: htmlContent,
+    });
+
+    if (error) {
+      console.error('Resend email error:', error);
+      return { success: false };
+    }
+
+    return { success: true, id: data?.id };
+  } catch (err) {
+    console.error('Failed to send photo comment notification email:', err);
+    return { success: false };
+  }
+}
+
+

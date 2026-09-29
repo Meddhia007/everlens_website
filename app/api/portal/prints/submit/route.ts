@@ -45,9 +45,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (selection.mediaItemIds.length > 50) {
+    const Gallery = (await import('@/models/Gallery')).Gallery;
+    const gallery = await Gallery.findById(session.galleryId).select('photoLimit').lean();
+    const photoLimit = gallery?.photoLimit || 50;
+
+    if (selection.mediaItemIds.length > photoLimit) {
       return NextResponse.json(
-        { error: 'Server validation: Print selection exceeds the 50 item maximum.' },
+        { error: `Server validation: Print selection exceeds the ${photoLimit} item maximum.` },
         { status: 400 }
       );
     }

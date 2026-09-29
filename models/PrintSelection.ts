@@ -25,12 +25,6 @@ const PrintSelectionSchema = new Schema<IPrintSelection>(
           ref: 'MediaItem',
         },
       ],
-      validate: {
-        validator: function (val: Types.ObjectId[]) {
-          return val.length <= 50;
-        },
-        message: 'Print selection cannot exceed 50 items.',
-      },
       default: [],
     },
     submittedAt: {
@@ -46,12 +40,23 @@ const PrintSelectionSchema = new Schema<IPrintSelection>(
   }
 );
 
-// Pre-save hook to guarantee server-side enforcement of maximum 50 selections
-PrintSelectionSchema.pre('save', function (next) {
-  if (this.mediaItemIds && this.mediaItemIds.length > 50) {
-    return next(new Error('Server validation error: Maximum 50 items allowed in print selection.'));
+// Pre-save hook to guarantee server-side enforcement of maximum selections based on Gallery's photoLimit
+PrintSelectionSchema.pre('save', async function (next) {
+  try {
+    if (this.mediaItemIds && this.mediaItemIds.length > 0) {
+      const Gallery = mongoose.models.Gallery || (await import('./Gallery')).default;
+      const gallery = await Gallery.findById(this.galleryId).select('photoLimit');
+      const limit = gallery?.photoLimit || 50;
+      if (this.mediaItemIds.length > limit) {
+        return next(
+          new Error(`Server validation error: Maximum ${limit} items allowed in print selection.`)
+        );
+      }
+    }
+    next();
+  } catch (err: any) {
+    next(err);
   }
-  next();
 });
 
 export const PrintSelection: Model<IPrintSelection> =

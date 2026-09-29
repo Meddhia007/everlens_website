@@ -9,6 +9,7 @@ import {
   Check,
   Film,
   Loader2,
+  Flag,
 } from 'lucide-react';
 import { HeartToggle } from './HeartToggle';
 import { VideoPlayer } from '@/components/shared/VideoPlayer';
@@ -43,6 +44,7 @@ interface PortalLightboxProps {
   onCapReachedNotice?: () => void;
   isGuest?: boolean;
   maxCap?: number;
+  onCommentPhoto?: (item: PortalMediaItem) => void;
 }
 
 export const PortalLightbox: React.FC<PortalLightboxProps> = ({
@@ -59,7 +61,8 @@ export const PortalLightbox: React.FC<PortalLightboxProps> = ({
   isCapReached = false,
   onCapReachedNotice,
   isGuest = false,
-  maxCap = 40,
+  maxCap = 50,
+  onCommentPhoto,
 }) => {
   const currentItem = items[currentIndex];
 
@@ -274,6 +277,18 @@ export const PortalLightbox: React.FC<PortalLightboxProps> = ({
               </>
             )}
           </button>
+
+          {!isGuest && currentItem.type === 'photo' && onCommentPhoto && (
+            <button
+              type="button"
+              onClick={() => onCommentPhoto(currentItem)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-white/20 text-xs font-sans text-white/80 hover:text-white hover:border-[#43B19F] hover:text-[#43B19F] bg-black/30 transition-all cursor-pointer active:scale-[0.97]"
+              title="Flag an issue / comment on this photo"
+            >
+              <Flag className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Flag Issue</span>
+            </button>
+          )}
 
           <button
             type="button"

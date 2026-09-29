@@ -4,15 +4,19 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { EditorialMasonryGrid } from './EditorialMasonryGrid';
 import { PortalLightbox, PortalMediaItem } from './PortalLightbox';
 import { DownloadRequestsPanel, ClientDownloadRequest } from './DownloadRequestsPanel';
-import { PortalHomeView } from './PortalHomeView';
+import { PortalHomeView, ProductionStage } from './PortalHomeView';
 import { PortalVideosView } from './PortalVideosView';
 import { PortalAlbumView } from './PortalAlbumView';
+import { PhotoCommentModal } from './PhotoCommentModal';
 import { usePortalContext } from './PortalContext';
 import { ArrowRight, BookOpen } from 'lucide-react';
 
 interface PortalSanctuaryViewProps {
   coupleNames: string;
   weddingDate?: string;
+  photoLimit?: number;
+  productionStage?: ProductionStage;
+  stageHistory?: Array<{ stage: string; reachedAt: string }>;
   initialMedia: PortalMediaItem[];
   initialLocked?: boolean;
   initialSubmittedAt?: string | null;
@@ -23,6 +27,9 @@ interface PortalSanctuaryViewProps {
 export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
   coupleNames,
   weddingDate,
+  photoLimit = 50,
+  productionStage = 'files_uploaded',
+  stageHistory = [],
   initialMedia,
   initialLocked = false,
   initialSubmittedAt = null,
@@ -31,7 +38,10 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
 }) => {
   const { activeSection, navigateToSection, setIsLocked, setAlbumCount } = usePortalContext();
 
-  const ALBUM_MAX_CAP = 40;
+  const maxAlbumCap = photoLimit || 50;
+
+  // Comment / Feedback Modal state
+  const [commentingItem, setCommentingItem] = useState<PortalMediaItem | null>(null);
 
   // Selected Album Items
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
@@ -127,8 +137,8 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
 
       const isCurrentlySelected = selectedIds.has(id);
 
-      if (!isCurrentlySelected && selectedIds.size >= ALBUM_MAX_CAP) {
-        setApiError(`Album limit reached (${ALBUM_MAX_CAP} photographs).`);
+      if (!isCurrentlySelected && selectedIds.size >= maxAlbumCap) {
+        setApiError(`Album limit reached (${maxAlbumCap} photographs).`);
         setTimeout(() => setApiError(null), 4000);
         return;
       }
@@ -166,7 +176,7 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
         setSelectedIds(selectedIds);
       }
     },
-    [locked, selectedIds]
+    [locked, selectedIds, maxAlbumCap]
   );
 
   // Update note
@@ -286,7 +296,9 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
           photoCount={photos.length}
           videoCount={videos.length}
           albumCount={selectedIds.size}
-          maxAlbumCap={ALBUM_MAX_CAP}
+          maxAlbumCap={maxAlbumCap}
+          productionStage={productionStage}
+          stageHistory={stageHistory}
           onViewPhotos={() => navigateToSection('photos')}
           onWatchVideos={() => navigateToSection('videos')}
           onViewAlbum={() => navigateToSection('album')}
@@ -316,7 +328,8 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
             notes={notes}
             onUpdateNote={handleUpdateNote}
             locked={locked}
-            isCapReached={selectedIds.size >= ALBUM_MAX_CAP}
+            isCapReached={selectedIds.size >= maxAlbumCap}
+            onCommentPhoto={(item) => setCommentingItem(item)}
           />
 
           {/* Persistent, discreet Album Bar when browsing photos */}
@@ -331,7 +344,7 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
                   {selectedIds.size}
                 </div>
                 <span>
-                  {selectedIds.size} / {ALBUM_MAX_CAP} selected for album
+                  {selectedIds.size} / {maxAlbumCap} selected for album
                 </span>
                 <span className="text-[#43B19F] flex items-center gap-1">
                   <span>View Album</span>
@@ -364,7 +377,7 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
         <PortalAlbumView
           selectedItems={selectedPhotos}
           locked={locked}
-          maxCap={ALBUM_MAX_CAP}
+          maxCap={maxAlbumCap}
           onContinueSelecting={() => navigateToSection('photos')}
           onSubmitSelection={handleSubmitSelection}
           isSubmitting={isSubmitting}
@@ -401,8 +414,16 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
         notes={notes}
         onUpdateNote={handleUpdateNote}
         locked={locked}
-        isCapReached={selectedIds.size >= ALBUM_MAX_CAP}
-        maxCap={ALBUM_MAX_CAP}
+        isCapReached={selectedIds.size >= maxAlbumCap}
+        maxCap={maxAlbumCap}
+        onCommentPhoto={(item) => setCommentingItem(item)}
+      />
+
+      {/* Client Photo Issue Flag / Comment Modal */}
+      <PhotoCommentModal
+        item={commentingItem}
+        isOpen={Boolean(commentingItem)}
+        onClose={() => setCommentingItem(null)}
       />
     </div>
   );

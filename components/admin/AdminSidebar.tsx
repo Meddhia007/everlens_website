@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   ShieldCheck,
+  Flag,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAdminModal } from './AdminModalContext';
@@ -64,6 +65,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ adminEmail }) => {
           href: '/admin/prints',
           icon: Printer,
           isActive: pathname.startsWith('/admin/prints'),
+        },
+        {
+          label: 'Client Feedback',
+          href: '/admin/feedback',
+          icon: Flag,
+          isActive: pathname.startsWith('/admin/feedback'),
         },
       ],
     },
