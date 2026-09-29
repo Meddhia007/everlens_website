@@ -5,9 +5,6 @@ import { Navbar } from '@/components/Navbar';
 import { Hero } from '@/components/Hero';
 import { MarqueeStrip } from '@/components/MarqueeStrip';
 import { PortfolioSection } from '@/components/PortfolioSection';
-import { ManifestoSection } from '@/components/ManifestoSection';
-import { HangingStoryStage } from '@/components/HangingStoryStage';
-import { JourneyStepsSection } from '@/components/JourneyStepsSection';
 import { AboutSection } from '@/components/AboutSection';
 import { ServicesSection } from '@/components/ServicesSection';
 import { EquipmentSection } from '@/components/EquipmentSection';
@@ -23,31 +20,22 @@ export default function HomePage() {
         {/* Fixed Difference-blend Navigation Bar */}
         <Navbar />
 
-        {/* 1. Fullscreen Cinematic Kinetic Hero (with floating bokeh embers & dripping cue) */}
+        {/* 1. Fullscreen Cinematic Kinetic Hero */}
         <Hero />
 
         {/* 2. Vibrant Teal Bodoni Italic Marquee Ribbon */}
         <MarqueeStrip />
 
-        {/* 3. Sticky Manifesto Section with Word-by-Word Scroll Lighting (Zayanni style) */}
-        <ManifestoSection />
-
-        {/* 4. Interactive Floating Artifacts Stage with Elastic Pop-Up Bounce (Zayanni style) */}
-        <HangingStoryStage />
-
-        {/* 5. Instagram-Style Carousel Portfolio Grid & Popup (with 1200ms cubic bezier) */}
+        {/* 3. Instagram-Style Carousel Portfolio Grid & Popup */}
         <PortfolioSection />
 
-        {/* 6. The 3-Step Journey with Curved Dashed Golden Thread (Zayanni style) */}
-        <JourneyStepsSection />
-
-        {/* 7. Curated Offerings / Services Section */}
+        {/* 4. Curated Offerings / Services Section */}
         <ServicesSection />
 
-        {/* 8. Production Camera & Optics Arsenal Section */}
+        {/* 5. Production Camera & Optics Arsenal Section */}
         <EquipmentSection />
 
-        {/* 9. Editorial Cream Breather & Stats Section */}
+        {/* 6. Editorial Cream Breather & Stats Section */}
         <AboutSection />
 
         {/* 7. Availability & Contact Inquiry Section */}
