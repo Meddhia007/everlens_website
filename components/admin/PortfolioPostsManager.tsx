@@ -92,6 +92,7 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
   const [formOrder, setFormOrder] = useState<number>(1);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
+  const [uploadPercent, setUploadPercent] = useState<number>(0);
   const [uploadError, setUploadError] = useState<string>('');
 
   // Batch Splitter state
@@ -102,6 +103,7 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
   const [photosPerPost, setPhotosPerPost] = useState<number>(4);
   const [isBatchUploading, setIsBatchUploading] = useState(false);
   const [batchUploadProgress, setBatchUploadProgress] = useState<string>('');
+  const [batchUploadPercent, setBatchUploadPercent] = useState<number>(0);
   const [batchUploadError, setBatchUploadError] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -223,8 +225,12 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
   // with fallback to server-side PutObjectCommand if needed.
   const uploadSinglePortfolioFile = async (
     file: File | Blob,
-    originalFilename?: string
+    filenameOrProgress?: string | ((percent: number) => void),
+    progressCallback?: (percent: number) => void
   ): Promise<{ url: string; r2Key: string; type: 'photo' | 'video' }> => {
+    const originalFilename = typeof filenameOrProgress === 'string' ? filenameOrProgress : undefined;
+    const onProgress = typeof filenameOrProgress === 'function' ? filenameOrProgress : progressCallback;
+
     const filename = originalFilename || (file instanceof File ? file.name : `crop-${Date.now()}.jpg`);
     const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(filename);
     const mediaType: 'photo' | 'video' = isVideo ? 'video' : 'photo';
@@ -250,15 +256,24 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
       const { uploadUrl, r2Key, viewUrl } = presignData;
 
       try {
-        // Direct PUT via XMLHttpRequest (standard reliable binary transfer in Safari)
+        // Direct PUT via XMLHttpRequest (standard reliable binary transfer with progress tracking)
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open('PUT', uploadUrl, true);
           if (file.type) {
             xhr.setRequestHeader('Content-Type', file.type);
           }
+          if (xhr.upload && onProgress) {
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable && event.total > 0) {
+                const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+                onProgress(percent);
+              }
+            };
+          }
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
+              if (onProgress) onProgress(100);
               resolve();
             } else {
               reject(new Error(`Storage PUT rejected (HTTP ${xhr.status}).`));
@@ -287,27 +302,45 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
       );
     }
 
-    // 2. Fallback: Server-side multipart upload (for files <= 4.5MB)
+    // 2. Fallback: Server-side multipart upload (for files <= 4.5MB) with progress support
     const formData = new FormData();
     formData.append('file', file, filename);
 
-    const uploadRes = await fetch('/api/admin/portfolio/upload', {
-      method: 'POST',
-      body: formData,
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/portfolio/upload', true);
+      if (xhr.upload && onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+            onProgress(percent);
+          }
+        };
+      }
+      xhr.onload = () => {
+        try {
+          const uploadData = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300 && uploadData?.uploaded?.[0]) {
+            if (onProgress) onProgress(100);
+            const uploaded = uploadData.uploaded[0];
+            resolve({
+              url: uploaded.url,
+              r2Key: uploaded.r2Key || uploaded.url,
+              type: uploaded.type || mediaType,
+            });
+          } else {
+            const errMsg = uploadData?.error || `Upload failed (HTTP ${xhr.status}).`;
+            reject(new Error(errMsg));
+          }
+        } catch {
+          reject(new Error('Failed to parse upload response.'));
+        }
+      };
+      xhr.onerror = () => {
+        reject(new Error('Network error during upload fallback.'));
+      };
+      xhr.send(formData);
     });
-
-    const uploadData = await safeJsonParse(uploadRes);
-    if (!uploadRes.ok || !uploadData.uploaded?.[0]) {
-      const errMsg = uploadData.error || `Failed to upload "${filename}". Please check file format and size.`;
-      throw new Error(errMsg);
-    }
-
-    const uploaded = uploadData.uploaded[0];
-    return {
-      url: uploaded.url,
-      r2Key: uploaded.r2Key || uploaded.url,
-      type: uploaded.type || mediaType,
-    };
   };
 
   // Client-side smart image optimizer for high-res camera photos (> 3.5MB)
@@ -412,14 +445,20 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
 
       // Upload directly conforming files
       if (toUploadDirectly.length > 0) {
-        for (let i = 0; i < toUploadDirectly.length; i++) {
+        const total = toUploadDirectly.length;
+        for (let i = 0; i < total; i++) {
           let f = toUploadDirectly[i];
-          setUploadProgress(`Processing ${i + 1} of ${toUploadDirectly.length}...`);
+          setUploadPercent(0);
+          setUploadProgress(`Processing ${i + 1} of ${total}...`);
           if (f.type.startsWith('image/')) {
             f = await optimizeImageIfNeeded(f);
           }
-          setUploadProgress(`Uploading ${i + 1} of ${toUploadDirectly.length}...`);
-          const uploaded = await uploadSinglePortfolioFile(f);
+          setUploadProgress(`Uploading ${i + 1} of ${total} (0%)...`);
+          const uploaded = await uploadSinglePortfolioFile(f, undefined, (percent) => {
+            setUploadPercent(percent);
+            setUploadProgress(`Uploading ${i + 1} of ${total} (${percent}%)...`);
+          });
+          setUploadPercent(100);
 
           const newMedia: AdminPortfolioMedia = {
             url: uploaded.url,
@@ -454,6 +493,7 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
     } finally {
       setIsUploading(false);
       setUploadProgress('');
+      setUploadPercent(0);
     }
   };
 
@@ -461,12 +501,21 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
   const handleCropComplete = async (croppedBlob: Blob, croppedDataUrl: string, originalSrc: string) => {
     setIsUploading(true);
     setUploadError('');
-    setUploadProgress('Uploading cropped photo...');
+    setUploadPercent(0);
+    setUploadProgress('Uploading cropped photo (0%)...');
     try {
       if (activeCropItem?.index !== undefined) {
         // Re-cropping an existing photo
         const idx = activeCropItem.index;
-        const cropped = await uploadSinglePortfolioFile(croppedBlob, `crop-${Date.now()}.jpg`);
+        const cropped = await uploadSinglePortfolioFile(
+          croppedBlob,
+          `crop-${Date.now()}.jpg`,
+          (percent) => {
+            setUploadPercent(percent);
+            setUploadProgress(`Uploading cropped photo (${percent}%)...`);
+          }
+        );
+        setUploadPercent(100);
 
         setFormMedia((prev) => {
           const updated = [...prev];
@@ -488,10 +537,27 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
           origFile = await optimizeImageIfNeeded(origFile);
         }
         // Upload both original file (for non-destructive editing) and cropped image
-        const [origUpload, cropUpload] = await Promise.all([
-          uploadSinglePortfolioFile(origFile),
-          uploadSinglePortfolioFile(croppedBlob, `crop-${Date.now()}-${activeCropItem.file.name}`),
-        ]);
+        setUploadPercent(0);
+        setUploadProgress('Uploading original (0%)...');
+        const origUpload = await uploadSinglePortfolioFile(
+          origFile,
+          origFile.name,
+          (pct) => {
+            setUploadPercent(Math.round(pct / 2));
+            setUploadProgress(`Uploading original (${pct}%)...`);
+          }
+        );
+
+        setUploadProgress('Uploading cropped (0%)...');
+        const cropUpload = await uploadSinglePortfolioFile(
+          croppedBlob,
+          `crop-${Date.now()}-${activeCropItem.file.name}`,
+          (pct) => {
+            setUploadPercent(50 + Math.round(pct / 2));
+            setUploadProgress(`Uploading cropped (${pct}%)...`);
+          }
+        );
+        setUploadPercent(100);
 
         const newMedia: AdminPortfolioMedia = {
           url: cropUpload.url,
@@ -515,6 +581,7 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
     } finally {
       setIsUploading(false);
       setUploadProgress('');
+      setUploadPercent(0);
       if (cropQueue.length > 0) {
         setActiveCropItem(cropQueue[0]);
         setCropQueue((prev) => prev.slice(1));
@@ -663,6 +730,7 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
     setIsBatchUploading(true);
     setBatchUploadError('');
     setBatchUploadProgress('');
+    setBatchUploadPercent(0);
 
     try {
       const fileArr = Array.from(files);
@@ -670,12 +738,17 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
 
       for (let i = 0; i < fileArr.length; i++) {
         let f = fileArr[i];
+        setBatchUploadPercent(0);
         setBatchUploadProgress(`Preparing photo ${i + 1} of ${fileArr.length}...`);
         if (f.type.startsWith('image/')) {
           f = await optimizeImageIfNeeded(f);
         }
-        setBatchUploadProgress(`Uploading photo ${i + 1} of ${fileArr.length}...`);
-        const uploaded = await uploadSinglePortfolioFile(f);
+        setBatchUploadProgress(`Uploading photo ${i + 1} of ${fileArr.length} (0%)...`);
+        const uploaded = await uploadSinglePortfolioFile(f, undefined, (pct) => {
+          setBatchUploadPercent(pct);
+          setBatchUploadProgress(`Uploading photo ${i + 1} of ${fileArr.length} (${pct}%)...`);
+        });
+        setBatchUploadPercent(100);
         newUrls.push(uploaded.url);
       }
 
@@ -686,6 +759,7 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
     } finally {
       setIsBatchUploading(false);
       setBatchUploadProgress('');
+      setBatchUploadPercent(0);
     }
   };
 
@@ -1197,12 +1271,12 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
-                    className="px-3.5 py-1.5 bg-teal/15 hover:bg-teal text-teal hover:text-ink border border-teal/40 rounded-[8px] text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.97]"
+                    className="px-3.5 py-1.5 bg-teal/15 hover:bg-teal text-teal hover:text-ink border border-teal/40 rounded-[8px] text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-75 active:scale-[0.97]"
                   >
                     {isUploading ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>{uploadProgress || 'Uploading...'}</span>
+                        <span className="font-mono">{uploadProgress || `Uploading (${uploadPercent}%)...`}</span>
                       </>
                     ) : (
                       <>
@@ -1221,6 +1295,27 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                   />
                 </div>
 
+                {/* Real-time Progress Bar */}
+                {isUploading && (
+                  <div className="space-y-1.5 py-1">
+                    <div className="flex items-center justify-between text-[11px] font-mono">
+                      <span className="text-teal font-medium flex items-center gap-1.5">
+                        <Loader2 className="w-3 h-3 animate-spin text-teal" />
+                        {uploadProgress || 'Uploading to Cloudflare R2...'}
+                      </span>
+                      <span className="text-teal font-bold bg-teal/10 px-2 py-0.5 rounded border border-teal/20">
+                        {uploadPercent}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-ink-2 rounded-full h-1.5 overflow-hidden border border-cream/10">
+                      <div
+                        className="bg-teal h-full transition-all duration-150 ease-out shadow-[0_0_8px_rgba(67,177,159,0.7)]"
+                        style={{ width: `${Math.max(2, uploadPercent)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {uploadError && (
                   <div className="p-3 bg-red-950/60 border border-red-500/40 rounded-[8px] text-xs text-red-200 flex items-center justify-between">
                     <span>{uploadError}</span>
@@ -1234,20 +1329,43 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                   </div>
                 )}
 
-                {/* Uploaded Photos Grid */}
+                {/* Uploaded Photos Grid or Active Uploading State */}
                 {formMedia.length === 0 ? (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-cream/20 hover:border-teal/50 rounded-[14px] p-8 text-center cursor-pointer space-y-2 bg-ink-3/40 transition-colors"
-                  >
-                    <UploadCloud className="w-8 h-8 text-cream/30 mx-auto" />
-                    <p className="text-xs text-cream/70 font-medium">
-                      Click to select photos from your computer
-                    </p>
-                    <p className="text-[11px] text-cream/40">
-                      Supports JPG, PNG, WEBP or MP4
-                    </p>
-                  </div>
+                  isUploading ? (
+                    <div className="border-2 border-dashed border-teal/40 rounded-[14px] p-8 text-center space-y-3 bg-teal/5 transition-colors">
+                      <Loader2 className="w-8 h-8 text-teal animate-spin mx-auto" />
+                      <div className="space-y-1">
+                        <p className="text-xl font-bold text-cream font-mono">
+                          {uploadPercent}%
+                        </p>
+                        <p className="text-xs text-cream/80 font-mono">
+                          {uploadProgress || 'Uploading media to Cloudflare R2...'}
+                        </p>
+                        <p className="text-[11px] text-cream/40">
+                          Transferring directly to high-speed storage. Please keep this modal open.
+                        </p>
+                      </div>
+                      <div className="w-48 mx-auto bg-ink-3 rounded-full h-1.5 overflow-hidden border border-cream/10">
+                        <div
+                          className="bg-teal h-full transition-all duration-150 ease-out shadow-[0_0_8px_rgba(67,177,159,0.5)]"
+                          style={{ width: `${Math.max(2, uploadPercent)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-cream/20 hover:border-teal/50 rounded-[14px] p-8 text-center cursor-pointer space-y-2 bg-ink-3/40 transition-colors"
+                    >
+                      <UploadCloud className="w-8 h-8 text-cream/30 mx-auto" />
+                      <p className="text-xs text-cream/70 font-medium">
+                        Click to select photos from your computer
+                      </p>
+                      <p className="text-[11px] text-cream/40">
+                        Supports JPG, PNG, WEBP or MP4
+                      </p>
+                    </div>
+                  )
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {formMedia.map((m, idx) => {
@@ -1432,12 +1550,12 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                     type="button"
                     onClick={() => batchFileInputRef.current?.click()}
                     disabled={isBatchUploading}
-                    className="px-3.5 py-1.5 bg-teal text-ink font-semibold rounded-[8px] text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.97]"
+                    className="px-3.5 py-1.5 bg-teal text-ink font-semibold rounded-[8px] text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-75 active:scale-[0.97]"
                   >
                     {isBatchUploading ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>{batchUploadProgress || 'Uploading batch...'}</span>
+                        <span className="font-mono">{batchUploadProgress || `Uploading (${batchUploadPercent}%)...`}</span>
                       </>
                     ) : (
                       <>
@@ -1456,6 +1574,27 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                   />
                 </div>
 
+                {/* Real-time Progress Bar for Batch */}
+                {isBatchUploading && (
+                  <div className="space-y-1.5 py-1">
+                    <div className="flex items-center justify-between text-[11px] font-mono">
+                      <span className="text-teal font-medium flex items-center gap-1.5">
+                        <Loader2 className="w-3 h-3 animate-spin text-teal" />
+                        {batchUploadProgress || 'Uploading batch to Cloudflare R2...'}
+                      </span>
+                      <span className="text-teal font-bold bg-teal/10 px-2 py-0.5 rounded border border-teal/20">
+                        {batchUploadPercent}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-ink-2 rounded-full h-1.5 overflow-hidden border border-cream/10">
+                      <div
+                        className="bg-teal h-full transition-all duration-150 ease-out shadow-[0_0_8px_rgba(67,177,159,0.7)]"
+                        style={{ width: `${Math.max(2, batchUploadPercent)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {batchUploadError && (
                   <div className="p-3 bg-red-950/60 border border-red-500/40 rounded-[8px] text-xs text-red-200 flex items-center justify-between">
                     <span>{batchUploadError}</span>
@@ -1470,18 +1609,41 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                 )}
 
                 {batchPhotos.length === 0 ? (
-                  <div
-                    onClick={() => batchFileInputRef.current?.click()}
-                    className="border-2 border-dashed border-teal/30 hover:border-teal rounded-[14px] p-8 text-center cursor-pointer space-y-2 bg-ink-3/40 transition-colors"
-                  >
-                    <UploadCloud className="w-8 h-8 text-teal mx-auto" />
-                    <p className="text-xs text-cream/80 font-medium">
-                      Select 12, 16, 20 or more wedding photos at once
-                    </p>
-                    <p className="text-[11px] text-cream/40">
-                      They will be automatically grouped into sequential {photosPerPost}-photo carousel posts.
-                    </p>
-                  </div>
+                  isBatchUploading ? (
+                    <div className="border-2 border-dashed border-teal/40 rounded-[14px] p-8 text-center space-y-3 bg-teal/5 transition-colors">
+                      <Loader2 className="w-8 h-8 text-teal animate-spin mx-auto" />
+                      <div className="space-y-1">
+                        <p className="text-xl font-bold text-cream font-mono">
+                          {batchUploadPercent}%
+                        </p>
+                        <p className="text-xs text-cream/80 font-mono">
+                          {batchUploadProgress || 'Uploading batch photos...'}
+                        </p>
+                        <p className="text-[11px] text-cream/40">
+                          Transferring directly to high-speed storage. Please keep this modal open.
+                        </p>
+                      </div>
+                      <div className="w-48 mx-auto bg-ink-3 rounded-full h-1.5 overflow-hidden border border-cream/10">
+                        <div
+                          className="bg-teal h-full transition-all duration-150 ease-out shadow-[0_0_8px_rgba(67,177,159,0.5)]"
+                          style={{ width: `${Math.max(2, batchUploadPercent)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => batchFileInputRef.current?.click()}
+                      className="border-2 border-dashed border-teal/30 hover:border-teal rounded-[14px] p-8 text-center cursor-pointer space-y-2 bg-ink-3/40 transition-colors"
+                    >
+                      <UploadCloud className="w-8 h-8 text-teal mx-auto" />
+                      <p className="text-xs text-cream/80 font-medium">
+                        Select 12, 16, 20 or more wedding photos at once
+                      </p>
+                      <p className="text-[11px] text-cream/40">
+                        They will be automatically grouped into sequential {photosPerPost}-photo carousel posts.
+                      </p>
+                    </div>
+                  )
                 ) : (
                   <div className="space-y-4">
                     {/* Live Split Preview */}
