@@ -34,7 +34,7 @@ interface PortfolioSectionProps {
 }
 
 export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightbox }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [filter, setFilter] = useState<string>('all');
   const [posts, setPosts] = useState<PortfolioPostItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -144,6 +144,14 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
     setExpandedTabs((prev) => ({ ...prev, [activeTabKey]: true }));
   };
 
+  const INITIAL_SHARP_COUNT = 8;
+  const BLURRED_ROW_COUNT = 4;
+  const COLLAPSED_LIMIT = INITIAL_SHARP_COUNT + BLURRED_ROW_COUNT; // 12
+  const hasMore = filteredPosts.length > INITIAL_SHARP_COUNT;
+  const displayedPosts = isExpanded
+    ? filteredPosts
+    : filteredPosts.slice(0, COLLAPSED_LIMIT);
+
   return (
     <section id="work" className="section-pad relative">
       {/* Anchor alias for #portfolio */}
@@ -191,8 +199,18 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
         <div className="relative">
           {/* Instagram Profile Grid: 3 cols mobile & tablet, 4 cols desktop, 2-3px gaps, 4:5 portrait aspect */}
           <div className="grid grid-cols-3 lg:grid-cols-4 gap-[2px] sm:gap-[3px] reveal-stagger">
-            {filteredPosts.map((post, index) => {
-              const isBlurred = !isExpanded && index >= 8;
+            {displayedPosts.map((post, index) => {
+              // Desktop has 4 columns:
+              // - Rows 1 & 2 (index 0-7) = 8 sharp posts
+              // - Row 3 (index 8-11) = 1 blurred row (max 4 posts)
+              // Mobile has 3 columns:
+              // - Rows 1 & 2 (index 0-5) = 6 sharp posts
+              // - Row 3 (index 6-8) = 1 blurred row (3 posts)
+              // - Posts index 9-11 are hidden on mobile when collapsed so mobile also has exactly 1 blurred row!
+              const isBlurredDesktop = !isExpanded && hasMore && index >= 8;
+              const isMobileOnlyBlurred = !isExpanded && hasMore && (index === 6 || index === 7);
+              const isMobileHidden = !isExpanded && hasMore && index >= 9;
+
               const isVideo =
                 post.category?.toLowerCase() === 'film' ||
                 post.category?.toLowerCase() === 'films' ||
@@ -217,23 +235,38 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                 <div
                   key={post._id}
                   onClick={() => {
-                    if (isBlurred) {
+                    if (isBlurredDesktop) {
                       handleExpandTab();
+                    } else if (isMobileOnlyBlurred) {
+                      if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                        handleCardClick(post);
+                      } else {
+                        handleExpandTab();
+                      }
                     } else {
                       handleCardClick(post);
                     }
                   }}
                   className={clsx(
-                    'relative aspect-[4/5] overflow-hidden bg-[#131918] group select-none cursor-pointer transition-shadow duration-500 hover:shadow-[0_12px_32px_rgba(0,0,0,0.6)]',
-                    isBlurred && 'cursor-pointer'
+                    'relative aspect-[4/5] overflow-hidden bg-[#131918] group select-none transition-shadow duration-500 hover:shadow-[0_12px_32px_rgba(0,0,0,0.6)] cursor-pointer',
+                    isMobileHidden && 'hidden lg:block'
                   )}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      if (isBlurred) handleExpandTab();
-                      else handleCardClick(post);
+                      if (isBlurredDesktop) {
+                        handleExpandTab();
+                      } else if (isMobileOnlyBlurred) {
+                        if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                          handleCardClick(post);
+                        } else {
+                          handleExpandTab();
+                        }
+                      } else {
+                        handleCardClick(post);
+                      }
                     }
                   }}
                   aria-label={post.title}
@@ -249,8 +282,10 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                       preload="metadata"
                       className={clsx(
                         'w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none',
-                        isBlurred
+                        isBlurredDesktop
                           ? 'blur-[10px] scale-110 opacity-35 brightness-75'
+                          : isMobileOnlyBlurred
+                          ? 'blur-[10px] scale-110 opacity-35 brightness-75 lg:blur-0 lg:scale-100 lg:opacity-100 lg:brightness-100 group-hover:scale-[1.07]'
                           : 'group-hover:scale-[1.07]'
                       )}
                     />
@@ -263,21 +298,33 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                       sizes="(max-width: 640px) 33vw, (max-width: 1024px) 33vw, 25vw"
                       className={clsx(
                         'w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
-                        isBlurred
+                        isBlurredDesktop
                           ? 'blur-[10px] scale-110 opacity-35 brightness-75'
+                          : isMobileOnlyBlurred
+                          ? 'blur-[10px] scale-110 opacity-35 brightness-75 lg:blur-0 lg:scale-100 lg:opacity-100 lg:brightness-100 group-hover:scale-[1.07]'
                           : 'group-hover:scale-[1.07]'
                       )}
                     />
                   )}
 
                   {/* Dark subtle hover tint on unblurred items */}
-                  {!isBlurred && (
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300 pointer-events-none" />
+                  {!isBlurredDesktop && (
+                    <div
+                      className={clsx(
+                        'absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300 pointer-events-none',
+                        isMobileOnlyBlurred && 'hidden lg:block'
+                      )}
+                    />
                   )}
 
                   {/* Top-Right Instagram Corner Indicator */}
-                  {!isBlurred && (
-                    <div className="absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 z-10 pointer-events-none">
+                  {!isBlurredDesktop && (
+                    <div
+                      className={clsx(
+                        'absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 z-10 pointer-events-none',
+                        isMobileOnlyBlurred && 'hidden lg:block'
+                      )}
+                    >
                       {isVideo ? (
                         <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-black/60 backdrop-blur-xs flex items-center justify-center text-white shadow-md">
                           <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-white ml-0.5 text-white" />
@@ -294,11 +341,11 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
             })}
           </div>
 
-          {/* Centered Expand Affordance on Blurred Section */}
-          {!isExpanded && filteredPosts.length > 8 && (
+          {/* Centered Expand Affordance on Blurred Section (Only 1 Blurred Row) */}
+          {!isExpanded && hasMore && (
             <div
               onClick={handleExpandTab}
-              className="absolute inset-x-0 bottom-0 top-[50%] sm:top-[55%] flex flex-col items-center justify-center bg-gradient-to-t from-[#0B0F0E] via-[#0B0F0E]/80 to-transparent cursor-pointer group z-20"
+              className="absolute inset-x-0 bottom-0 h-[38%] sm:h-[35%] flex flex-col items-center justify-center bg-gradient-to-t from-[#0F1413] via-[#0F1413]/85 to-transparent cursor-pointer group z-20"
             >
               <button
                 type="button"
@@ -306,9 +353,13 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                   e.stopPropagation();
                   handleExpandTab();
                 }}
-                className="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3 sm:py-3.5 rounded-full bg-[#131918]/95 hover:bg-[#1A2321] text-cream border border-teal/40 hover:border-teal backdrop-blur-md shadow-2xl text-xs sm:text-sm font-sans font-medium tracking-wide transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+                className="btn-shine inline-flex items-center gap-2.5 px-6 sm:px-8 py-3 sm:py-3.5 rounded-full bg-[#131918]/95 hover:bg-[#1A2321] text-cream border border-teal/40 hover:border-teal backdrop-blur-md shadow-2xl text-xs sm:text-sm font-sans font-medium tracking-wide transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
               >
-                <span>+{filteredPosts.length - 8} {t.work.more_moments}</span>
+                <span>
+                  {language === 'fr'
+                    ? `Voir plus (+${filteredPosts.length - INITIAL_SHARP_COUNT})`
+                    : `See more (+${filteredPosts.length - INITIAL_SHARP_COUNT})`}
+                </span>
                 <ChevronDown className="w-4 h-4 text-teal transition-transform duration-300 group-hover:translate-y-0.5" />
               </button>
             </div>
