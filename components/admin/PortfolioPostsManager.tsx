@@ -749,9 +749,25 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
 
   const filteredPosts = posts.filter((p) => {
     if (categoryFilter !== 'all') {
-      const pCat = (p.category || '').toLowerCase().trim();
-      const filterCat = categoryFilter.toLowerCase().trim();
-      if (pCat !== filterCat && !pCat.includes(filterCat) && !filterCat.includes(pCat)) {
+      const pCat = (p.category || '').toLowerCase().trim().replace(/[\s_]+/g, '-');
+      const filterCat = categoryFilter.toLowerCase().trim().replace(/[\s_]+/g, '-');
+
+      if (filterCat === 'films' || filterCat === 'film') {
+        const isFilm =
+          pCat === 'film' ||
+          pCat === 'films' ||
+          pCat === 'video' ||
+          pCat === 'videos' ||
+          p.media?.some((m) => m.type === 'video');
+        if (!isFilm) return false;
+      } else if (filterCat === 'photography' || filterCat === 'photo') {
+        const isPhoto =
+          pCat === 'photography' ||
+          pCat === 'photo' ||
+          pCat === 'photos' ||
+          (pCat !== 'film' && pCat !== 'films' && pCat !== 'video' && pCat !== 'videos');
+        if (!isPhoto) return false;
+      } else if (pCat !== filterCat) {
         return false;
       }
     }
