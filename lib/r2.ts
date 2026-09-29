@@ -36,6 +36,10 @@ if (R2_ENDPOINT) {
   }
 }
 
+const R2_PUBLIC_DOMAIN =
+  cleanEnv(process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN) ||
+  cleanEnv(process.env.R2_PUBLIC_DOMAIN);
+
 export const isMockR2 =
   !R2_ACCESS_KEY_ID ||
   R2_ACCESS_KEY_ID === 'development_key_id' ||
@@ -196,6 +200,8 @@ export async function getPresignedDownloadUrl(
   expiresInSeconds: number = 3600,
   options?: { downloadFilename?: string; contentType?: string }
 ): Promise<string> {
+  const bucket = getR2BucketName();
+
   // If the key is already an HTTP URL, check if it's an R2 URL that should be dynamically re-signed
   if (key.startsWith('http://') || key.startsWith('https://')) {
     if (key.includes('.r2.cloudflarestorage.com/')) {
@@ -203,10 +209,21 @@ export async function getPresignedDownloadUrl(
         const sanitizedKey = key.replace(/[<>]/g, '');
         const urlObj = new URL(sanitizedKey);
         const parts = urlObj.pathname.split('/').filter(Boolean);
-        if (parts.length >= 2) {
-          // parts[0] is bucket, remainder is key
-          const extractedKey = parts.slice(1).join('/');
-          const bucket = getR2BucketName();
+
+        // Handle both virtual-hosted style (bucket in hostname) and path style (bucket in pathname)
+        let extractedKey = '';
+        if (parts.length > 0 && parts[0] === bucket) {
+          extractedKey = parts.slice(1).join('/');
+        } else {
+          extractedKey = parts.join('/');
+        }
+
+        if (extractedKey) {
+          if (R2_PUBLIC_DOMAIN) {
+            const cleanDomain = R2_PUBLIC_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+            return `https://${cleanDomain}/${extractedKey}`;
+          }
+
           const command = new GetObjectCommand({
             Bucket: bucket,
             Key: extractedKey,
@@ -219,8 +236,8 @@ export async function getPresignedDownloadUrl(
             expiresIn: expiresInSeconds,
           });
         }
-      } catch {
-        // Fallback to original URL
+      } catch (err) {
+        console.warn('Failed to dynamically re-sign R2 URL:', err);
       }
     }
     return key;
@@ -263,10 +280,15 @@ export async function getPresignedDownloadUrl(
     return getDeterministicMedia(key, LOCAL_WEDDING_PHOTOS);
   }
 
-  const bucket = getR2BucketName();
+  const cleanKey = key.replace(/^\/+/, '');
+  if (R2_PUBLIC_DOMAIN) {
+    const cleanDomain = R2_PUBLIC_DOMAIN.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    return `https://${cleanDomain}/${cleanKey}`;
+  }
+
   const command = new GetObjectCommand({
     Bucket: bucket,
-    Key: key,
+    Key: cleanKey,
     ResponseContentDisposition: options?.downloadFilename
       ? `attachment; filename="${options.downloadFilename.replace(/"/g, '')}"`
       : undefined,
