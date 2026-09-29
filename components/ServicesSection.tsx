@@ -112,7 +112,7 @@ export const ServicesSection: React.FC = () => {
 
       <div className="max-w-7xl mx-auto space-y-12 sm:space-y-16">
         {/* Section Header */}
-        <div className="text-center space-y-4 max-w-3xl mx-auto">
+        <div className="text-center space-y-4 max-w-3xl mx-auto reveal-on-scroll">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#184841]/10 border border-[#184841]/20 text-[#184841] text-[11px] font-mono tracking-widest uppercase mb-1">
             <span className="w-1.5 h-1.5 rounded-full bg-[#246A60] animate-pulse" />
             <span>{t.packs.tag}</span>
@@ -132,7 +132,7 @@ export const ServicesSection: React.FC = () => {
         </div>
 
         {/* 4-Packs Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch reveal-stagger">
           {packs.map((pack, idx) => {
             const presetPack = t.packs.preset_packs[idx];
             const displayTitle = language === 'en' && presetPack ? presetPack.title : pack.title;
@@ -165,12 +165,12 @@ export const ServicesSection: React.FC = () => {
             return (
               <div
                 key={pack.id || `pack-${idx}`}
-                className={`relative flex flex-col justify-between rounded-[26px] p-6 sm:p-7 transition-all duration-300 group select-none ${
+                className={`relative flex flex-col justify-between rounded-[26px] p-6 sm:p-7 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-2 group select-none ${
                   isBestOffer
-                    ? 'bg-white border-2 border-[#D4A359] shadow-[0_8px_30px_rgba(212,163,89,0.22)] hover:shadow-[0_12px_40px_rgba(212,163,89,0.3)]'
+                    ? 'bg-white border-2 border-[#D4A359] shadow-[0_8px_30px_rgba(212,163,89,0.22)] hover:shadow-[0_16px_45px_rgba(212,163,89,0.35)]'
                     : isSignature
-                    ? 'bg-white border-2 border-[#1E524A]/60 shadow-[0_8px_30px_rgba(30,82,74,0.16)] hover:border-[#1E524A]'
-                    : 'bg-[#FAF9F5] border-[1.5px] border-[#2A655C]/35 hover:border-[#2A655C] shadow-[0_4px_20px_rgba(20,62,56,0.06)] hover:shadow-[0_10px_30px_rgba(20,62,56,0.12)]'
+                    ? 'bg-white border-2 border-[#1E524A]/60 shadow-[0_8px_30px_rgba(30,82,74,0.16)] hover:border-[#1E524A] hover:shadow-[0_14px_38px_rgba(30,82,74,0.24)]'
+                    : 'bg-[#FAF9F5] border-[1.5px] border-[#2A655C]/35 hover:border-[#2A655C] shadow-[0_4px_20px_rgba(20,62,56,0.06)] hover:shadow-[0_12px_32px_rgba(20,62,56,0.16)]'
                 }`}
               >
                 {/* Floating Badge (e.g. MEILLEURE OFFRE / BEST VALUE) */}
@@ -289,7 +289,7 @@ export const ServicesSection: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleSelectPack(displayTitle)}
-                    className={`w-full py-2.5 px-4 rounded-full text-xs font-sans font-semibold tracking-wider uppercase transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-xs ${
+                    className={`btn-shine w-full py-2.5 px-4 rounded-full text-xs font-sans font-semibold tracking-wider uppercase transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 ${
                       isBestOffer
                         ? 'bg-[#246A60] text-white hover:bg-[#1A524A] shadow-md'
                         : 'bg-transparent border border-[#246A60]/50 text-[#1A524A] hover:bg-[#246A60] hover:text-white'
@@ -305,7 +305,7 @@ export const ServicesSection: React.FC = () => {
         </div>
 
         {/* Bottom Banner matching Brochure Notice */}
-        <div className="rounded-2xl p-6 sm:p-8 bg-gradient-to-r from-[#173F39] via-[#1E524A] to-[#173F39] text-[#FAF8F2] border border-[#2B6D62]/40 text-center space-y-4 shadow-xl">
+        <div className="reveal-on-scroll rounded-2xl p-6 sm:p-8 bg-gradient-to-r from-[#173F39] via-[#1E524A] to-[#173F39] text-[#FAF8F2] border border-[#2B6D62]/40 text-center space-y-4 shadow-xl">
           <div className="space-y-1">
             <h4 className="font-serif text-xl sm:text-2xl text-white font-medium tracking-tight uppercase">
               {language === 'fr' ? 'Réservez Votre Date 2026 Dès Maintenant' : 'Reserve Your 2026 Celebration Date'}
@@ -320,7 +320,7 @@ export const ServicesSection: React.FC = () => {
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <a
               href="tel:+21626555785"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-sans hover:bg-white/20 transition-colors"
+              className="btn-shine inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-sans hover:bg-white/20 transition-all active:scale-95"
             >
               <Phone className="w-3.5 h-3.5 text-[#A7DDD4]" />
               <span>+216 26 555 785</span>
@@ -329,14 +329,14 @@ export const ServicesSection: React.FC = () => {
               href="https://wa.me/21626555785"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#25D366]/20 border border-[#25D366]/40 text-[#D2F9E1] text-xs font-sans hover:bg-[#25D366]/30 transition-colors"
+              className="btn-shine inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#25D366]/20 border border-[#25D366]/40 text-[#D2F9E1] text-xs font-sans hover:bg-[#25D366]/30 transition-all active:scale-95"
             >
               <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
               <span>{language === 'fr' ? 'WhatsApp Direct' : 'Direct WhatsApp'}</span>
             </a>
             <a
               href="#contact"
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#FAF8F2] text-[#173F39] font-bold text-xs font-sans uppercase tracking-wider hover:bg-white transition-colors shadow-sm"
+              className="btn-shine inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#FAF8F2] text-[#173F39] font-bold text-xs font-sans uppercase tracking-wider hover:bg-white transition-all shadow-sm active:scale-95"
             >
               <span>{language === 'fr' ? 'Demander un devis' : 'Request a Quote'}</span>
               <ArrowRight className="w-3.5 h-3.5 text-[#173F39]" />

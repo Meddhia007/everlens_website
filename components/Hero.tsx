@@ -41,6 +41,37 @@ export const Hero: React.FC = () => {
         }}
       />
 
+      {/* Atmospheric Floating Embers / Ambient Candlelight Bokeh */}
+      <div className="absolute inset-0 z-1 pointer-events-none overflow-hidden" aria-hidden="true">
+        {[
+          { left: '9%', top: '22%', size: '3px', delay: '0s', dur: '5.4s', color: '#EAE8DA' },
+          { left: '17%', top: '68%', size: '2px', delay: '1.2s', dur: '6.6s', color: '#43B19F' },
+          { left: '26%', top: '38%', size: '4px', delay: '0.5s', dur: '7.2s', color: '#C9A24B' },
+          { left: '36%', top: '80%', size: '2px', delay: '2.5s', dur: '5.9s', color: '#EAE8DA' },
+          { left: '47%', top: '16%', size: '3px', delay: '1.9s', dur: '6.4s', color: '#43B19F' },
+          { left: '56%', top: '74%', size: '2px', delay: '0.4s', dur: '5.6s', color: '#C9A24B' },
+          { left: '65%', top: '30%', size: '4px', delay: '2.2s', dur: '7.6s', color: '#EAE8DA' },
+          { left: '74%', top: '64%', size: '3px', delay: '1.4s', dur: '6.9s', color: '#43B19F' },
+          { left: '82%', top: '20%', size: '3px', delay: '0.8s', dur: '6.0s', color: '#C9A24B' },
+          { left: '89%', top: '76%', size: '2px', delay: '2.8s', dur: '6.4s', color: '#EAE8DA' },
+          { left: '94%', top: '44%', size: '3px', delay: '1.3s', dur: '7.1s', color: '#43B19F' },
+        ].map((dust, idx) => (
+          <span
+            key={idx}
+            className="absolute rounded-full pointer-events-none"
+            style={{
+              left: dust.left,
+              top: dust.top,
+              width: dust.size,
+              height: dust.size,
+              backgroundColor: dust.color,
+              boxShadow: `0 0 10px ${dust.color}`,
+              animation: `heroDust ${dust.dur} ease-in-out infinite alternate ${dust.delay}`,
+            }}
+          />
+        ))}
+      </div>
+
       {/* Hero Content */}
       <div className="relative z-2 px-5 sm:px-14 pb-8 sm:pb-12 w-full max-w-6xl">
         {/* Eyebrow */}
@@ -66,11 +97,11 @@ export const Hero: React.FC = () => {
           <a
             href="#work"
             onClick={handleScrollToPortfolio}
-            className="btn btn-fill cursor-pointer"
+            className="btn btn-fill btn-shine cursor-pointer"
           >
             <span>{t.hero.cta_reel}</span>
           </a>
-          <Link href="#contact" className="btn btn-outline">
+          <Link href="#contact" className="btn btn-outline btn-shine">
             {t.hero.cta_availability}
           </Link>
         </div>

@@ -79,7 +79,7 @@ export const ContactSection: React.FC = () => {
     <section id="contact" className="py-16 sm:py-24 lg:py-32 px-4 sm:px-8 lg:px-12 bg-ink border-t border-cream/10 relative z-10">
       <div className="max-w-7xl mx-auto space-y-12 sm:space-y-16">
         {/* Main Centered Header */}
-        <div className="text-center space-y-4 max-w-2xl mx-auto">
+        <div className="text-center space-y-4 max-w-2xl mx-auto reveal-on-scroll">
           <h2 className="font-serif text-3xl sm:text-4xl lg:text-[44px] text-cream font-medium tracking-tight">
             {t.contact.title}
           </h2>
@@ -89,7 +89,7 @@ export const ContactSection: React.FC = () => {
         </div>
 
         {/* Two-Column Grid: Get In Touch (Left) & Send Us A Message Card (Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-16 items-start text-left">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-16 items-start text-left reveal-stagger">
           {/* Left Column: Direct channels and info (5 cols) */}
           <div className="lg:col-span-5 space-y-8">
             <div className="space-y-3">
@@ -362,7 +362,7 @@ export const ContactSection: React.FC = () => {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full py-3.5 rounded-xl bg-teal hover:bg-cream text-ink font-semibold text-xs font-sans uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-60"
+                      className="btn-shine w-full py-3.5 rounded-xl bg-teal hover:bg-cream text-ink font-semibold text-xs font-sans uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-60 active:scale-[0.98]"
                     >
                       {isSubmitting ? (
                         <>

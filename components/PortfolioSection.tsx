@@ -149,7 +149,7 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
       {/* Anchor alias for #portfolio */}
       <span id="portfolio" className="absolute -top-24 block pointer-events-none" />
       {/* Section Head with Filter Tabs */}
-      <div className="p-head">
+      <div className="p-head reveal-on-scroll">
         <h2>{t.work.title}</h2>
         <div className="p-tabs" aria-label="Portfolio Category Filters">
           {categories.map((cat) => (
@@ -176,7 +176,7 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
           ))}
         </div>
       ) : filteredPosts.length === 0 ? (
-        <div className="py-20 px-6 text-center border border-white/10 rounded-[14px] bg-[#131918]/60 max-w-2xl mx-auto my-8 backdrop-blur-xs">
+        <div className="py-20 px-6 text-center border border-white/10 rounded-[14px] bg-[#131918]/60 max-w-2xl mx-auto my-8 backdrop-blur-xs reveal-on-scroll">
           <div className="w-12 h-12 rounded-full bg-[#43B19F]/10 border border-[#43B19F]/30 flex items-center justify-center mx-auto mb-4 text-[#43B19F]">
             <Sparkles className="w-5 h-5" />
           </div>
@@ -190,7 +190,7 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
       ) : (
         <div className="relative">
           {/* Instagram Profile Grid: 3 cols mobile & tablet, 4 cols desktop, 2-3px gaps, 4:5 portrait aspect */}
-          <div className="grid grid-cols-3 lg:grid-cols-4 gap-[2px] sm:gap-[3px]">
+          <div className="grid grid-cols-3 lg:grid-cols-4 gap-[2px] sm:gap-[3px] reveal-stagger">
             {filteredPosts.map((post, index) => {
               const isBlurred = !isExpanded && index >= 8;
               const isVideo =
@@ -224,7 +224,7 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                     }
                   }}
                   className={clsx(
-                    'relative aspect-[4/5] overflow-hidden bg-[#131918] group select-none cursor-pointer',
+                    'relative aspect-[4/5] overflow-hidden bg-[#131918] group select-none cursor-pointer transition-shadow duration-500 hover:shadow-[0_12px_32px_rgba(0,0,0,0.6)]',
                     isBlurred && 'cursor-pointer'
                   )}
                   role="button"
@@ -248,10 +248,10 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                       playsInline
                       preload="metadata"
                       className={clsx(
-                        'w-full h-full object-cover transition-all duration-500 pointer-events-none',
+                        'w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none',
                         isBlurred
                           ? 'blur-[10px] scale-110 opacity-35 brightness-75'
-                          : 'group-hover:scale-105'
+                          : 'group-hover:scale-[1.07]'
                       )}
                     />
                   ) : (
@@ -262,10 +262,10 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                       decoding="async"
                       sizes="(max-width: 640px) 33vw, (max-width: 1024px) 33vw, 25vw"
                       className={clsx(
-                        'w-full h-full object-cover transition-all duration-500',
+                        'w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
                         isBlurred
                           ? 'blur-[10px] scale-110 opacity-35 brightness-75'
-                          : 'group-hover:scale-105'
+                          : 'group-hover:scale-[1.07]'
                       )}
                     />
                   )}

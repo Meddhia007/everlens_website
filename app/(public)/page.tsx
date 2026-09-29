@@ -12,10 +12,12 @@ import { ContactSection } from '@/components/ContactSection';
 import { Footer } from '@/components/Footer';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { BookingProvider } from '@/context/BookingContext';
+import { ScrollRevealInit } from '@/components/ScrollRevealInit';
 
 export default function HomePage() {
   return (
     <BookingProvider>
+      <ScrollRevealInit />
       <div className="min-h-screen w-full overflow-x-hidden bg-ink text-cream selection:bg-teal selection:text-ink relative">
         {/* Fixed Difference-blend Navigation Bar */}
         <Navbar />

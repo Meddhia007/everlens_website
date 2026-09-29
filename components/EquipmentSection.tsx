@@ -185,7 +185,7 @@ export const EquipmentSection: React.FC = () => {
     <section id="equipment" className="py-16 sm:py-24 lg:py-32 px-4 sm:px-8 lg:px-12 bg-ink border-t border-cream/10 relative z-10">
       <div className="max-w-7xl mx-auto space-y-12 sm:space-y-16">
         {/* Centered Heading */}
-        <div className="text-center space-y-4 max-w-3xl mx-auto">
+        <div className="text-center space-y-4 max-w-3xl mx-auto reveal-on-scroll">
           <h2 className="font-serif text-3xl sm:text-4xl lg:text-[44px] text-cream font-medium tracking-tight">
             {t.equipment.title}
           </h2>
@@ -200,7 +200,7 @@ export const EquipmentSection: React.FC = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-1.5 rounded-full text-xs font-sans font-medium transition-all duration-300 cursor-pointer ${
+                className={`px-4 py-1.5 rounded-full text-xs font-sans font-medium transition-all duration-300 cursor-pointer active:scale-95 ${
                   activeTab === tab.id
                     ? 'bg-teal text-ink shadow-sm font-semibold'
                     : 'bg-ink-2 text-cream/70 hover:text-cream border border-cream/10 hover:border-cream/20'
@@ -213,7 +213,7 @@ export const EquipmentSection: React.FC = () => {
         </div>
 
         {/* Equipment Cards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 reveal-stagger">
           {filteredEquipment.map((item) => {
             const IconComponent =
               typeof item.icon === 'string' ? ICON_MAP[item.icon] || Camera : item.icon || Camera;
@@ -221,7 +221,7 @@ export const EquipmentSection: React.FC = () => {
             return (
               <div
                 key={item.id}
-                className="group relative p-5 sm:p-8 rounded-2xl bg-ink-2 border border-cream/10 hover:border-teal/50 hover:bg-[#1D2422] transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_0_35px_rgba(67,177,159,0.15)] flex flex-col justify-between space-y-7"
+                className="group relative p-5 sm:p-8 rounded-2xl bg-ink-2 border border-cream/10 hover:border-teal/50 hover:bg-[#1D2422] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1.5 hover:shadow-[0_16px_40px_rgba(0,0,0,0.5),0_0_35px_rgba(67,177,159,0.15)] flex flex-col justify-between space-y-7 select-none"
               >
                 {/* Header Row: Icon + Name + Role + Badge */}
                 <div className="flex items-start justify-between gap-3">
