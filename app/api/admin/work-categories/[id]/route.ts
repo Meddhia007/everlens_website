@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/mongodb';
 import { WorkCategory } from '@/models/WorkCategory';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
@@ -115,6 +116,12 @@ export async function PUT(
         const idx = memoryStore.categories.findIndex((it) => it._id === id);
         if (idx !== -1) memoryStore.categories[idx] = formatted;
 
+        try {
+          revalidatePath('/api/public/work-categories');
+          revalidatePath('/admin/portfolio');
+          revalidatePath('/');
+        } catch {}
+
         return NextResponse.json({
           success: true,
           category: formatted,
@@ -184,6 +191,12 @@ export async function DELETE(
     }
 
     memoryStore.categories = memoryStore.categories.filter((it) => it._id !== id);
+
+    try {
+      revalidatePath('/api/public/work-categories');
+      revalidatePath('/admin/portfolio');
+      revalidatePath('/');
+    } catch {}
 
     return NextResponse.json({
       success: true,

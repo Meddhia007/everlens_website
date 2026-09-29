@@ -64,14 +64,16 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
 
   // Dynamically load all portfolio categories
   React.useEffect(() => {
-    fetch('/api/public/work-categories')
-      .then((res) => (res.ok ? res.json() : null))
+    fetch('/api/admin/work-categories', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : fetch('/api/public/work-categories').then((r) => r.json())))
       .then((data) => {
         if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
-          const dynamicOptions: MediaCategoryOption[] = data.categories.map((c: any) => ({
-            value: (c.slug || c.name).toLowerCase(),
-            label: c.name,
-          }));
+          const dynamicOptions: MediaCategoryOption[] = data.categories
+            .filter((c: any) => c.active !== false)
+            .map((c: any) => ({
+              value: (c.slug || c.name).toLowerCase(),
+              label: c.name,
+            }));
           setCategoryOptions((prev) => {
             const existingValues = new Set(dynamicOptions.map((d) => d.value.toLowerCase()));
             const remaining = prev.filter((p) => !existingValues.has(p.value.toLowerCase()));

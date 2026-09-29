@@ -50,7 +50,13 @@ export interface AdminPortfolioPost {
   createdAt?: string;
 }
 
-export const PortfolioPostsManager: React.FC = () => {
+interface PortfolioPostsManagerProps {
+  initialCategories?: { id: string; name: string; slug: string }[];
+}
+
+export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
+  initialCategories = [],
+}) => {
   const [posts, setPosts] = useState<AdminPortfolioPost[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,22 +107,31 @@ export const PortfolioPostsManager: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dynamic categories state
-  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([
-    { id: 'all', name: 'All', slug: 'all' },
-  ]);
+  // Dynamic categories state: seeded immediately from server-side initialCategories
+  const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>(() => {
+    if (initialCategories && initialCategories.length > 0) {
+      return [{ id: 'all', name: 'All', slug: 'all' }, ...initialCategories];
+    }
+    return [{ id: 'all', name: 'All', slug: 'all' }];
+  });
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/public/work-categories');
+      // 1. Try to load live categories from admin endpoint first (no caching)
+      let res = await fetch('/api/admin/work-categories', { cache: 'no-store' });
+      if (!res.ok) {
+        res = await fetch('/api/public/work-categories', { cache: 'no-store' });
+      }
       if (res.ok) {
         const data = await res.json();
         if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
-          const loaded = data.categories.map((c: any) => ({
-            id: c.id || c.slug || c._id,
-            name: c.name,
-            slug: c.slug,
-          }));
+          const loaded = data.categories
+            .filter((c: any) => c.active !== false)
+            .map((c: any) => ({
+              id: c._id || c.id || c.slug,
+              name: c.name,
+              slug: c.slug,
+            }));
           setCategories([
             { id: 'all', name: 'All', slug: 'all' },
             ...loaded,

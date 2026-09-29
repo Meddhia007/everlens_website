@@ -33,7 +33,7 @@ export async function GET() {
       { categories: formatted },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+          'Cache-Control': 'public, max-age=0, s-maxage=5, stale-while-revalidate=15',
         },
       }
     );
@@ -52,7 +52,7 @@ export async function GET() {
       },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+          'Cache-Control': 'public, max-age=0, s-maxage=5, stale-while-revalidate=15',
         },
       }
     );

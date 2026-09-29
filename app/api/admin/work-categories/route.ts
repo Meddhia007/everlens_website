@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { connectToDatabase } from '@/lib/mongodb';
 import { WorkCategory } from '@/models/WorkCategory';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
@@ -106,6 +107,12 @@ export async function POST(request: NextRequest) {
         _id: created._id.toString(),
       };
       memoryStore.categories.push(formatted);
+
+      try {
+        revalidatePath('/api/public/work-categories');
+        revalidatePath('/admin/portfolio');
+        revalidatePath('/');
+      } catch {}
 
       return NextResponse.json(
         {

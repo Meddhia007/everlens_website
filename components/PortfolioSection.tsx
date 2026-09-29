@@ -107,13 +107,20 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
 
   const filteredPosts = posts.filter((post) => {
     if (filter === 'all' || filter === 'All') return true;
-    const itemCat = post.category?.toLowerCase() || '';
-    const activeFilter = filter.toLowerCase();
+    const itemCat = post.category?.toLowerCase().trim() || '';
+    const activeFilter = filter.toLowerCase().trim();
     if (activeFilter === 'photography') {
       return itemCat === 'photography' || itemCat === 'photo' || itemCat === 'photos';
     }
     if (activeFilter === 'films' || activeFilter === 'film') {
-      return itemCat === 'film' || itemCat === 'films' || itemCat === 'video' || itemCat === 'videos';
+      return (
+        itemCat === 'film' ||
+        itemCat === 'films' ||
+        itemCat === 'video' ||
+        itemCat === 'videos' ||
+        Boolean(post.videoUrl) ||
+        post.media?.some((m) => m.type === 'video')
+      );
     }
     if (activeFilter.includes('traditional') || activeFilter.includes('wteya')) {
       return itemCat.includes('traditional') || itemCat.includes('wteya') || itemCat.includes('traditionnel');
@@ -121,7 +128,9 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
     if (activeFilter.includes('editorial')) {
       return itemCat.includes('editorial') || itemCat.includes('éditorial');
     }
-    return itemCat === activeFilter;
+    const normItem = itemCat.replace(/[\s_-]+/g, '');
+    const normFilter = activeFilter.replace(/[\s_-]+/g, '');
+    return normItem === normFilter || itemCat.includes(activeFilter) || activeFilter.includes(itemCat);
   });
 
   const activeTabKey = filter.toLowerCase();
