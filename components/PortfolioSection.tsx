@@ -248,10 +248,10 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                       playsInline
                       preload="metadata"
                       className={clsx(
-                        'w-full h-full object-cover transition-all duration-500 pointer-events-none',
+                        'w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none',
                         isBlurred
                           ? 'blur-[10px] scale-110 opacity-35 brightness-75'
-                          : 'group-hover:scale-105'
+                          : 'group-hover:scale-[1.07]'
                       )}
                     />
                   ) : (
@@ -262,10 +262,10 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                       decoding="async"
                       sizes="(max-width: 640px) 33vw, (max-width: 1024px) 33vw, 25vw"
                       className={clsx(
-                        'w-full h-full object-cover transition-all duration-500',
+                        'w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
                         isBlurred
                           ? 'blur-[10px] scale-110 opacity-35 brightness-75'
-                          : 'group-hover:scale-105'
+                          : 'group-hover:scale-[1.07]'
                       )}
                     />
                   )}
