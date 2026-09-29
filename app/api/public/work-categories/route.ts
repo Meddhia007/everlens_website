@@ -29,18 +29,32 @@ export async function GET() {
       order: item.order || 0,
     }));
 
-    return NextResponse.json({ categories: formatted });
+    return NextResponse.json(
+      { categories: formatted },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+        },
+      }
+    );
   } catch (error: any) {
-    return NextResponse.json({
-      categories: memoryStore.categories
-        .filter((c) => c.active !== false)
-        .map((c) => ({
-          id: c._id,
-          name: c.name,
-          slug: c.slug,
-          description: c.description || '',
-          order: c.order || 0,
-        })),
-    });
+    return NextResponse.json(
+      {
+        categories: memoryStore.categories
+          .filter((c) => c.active !== false)
+          .map((c) => ({
+            id: c._id,
+            name: c.name,
+            slug: c.slug,
+            description: c.description || '',
+            order: c.order || 0,
+          })),
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+        },
+      }
+    );
   }
 }

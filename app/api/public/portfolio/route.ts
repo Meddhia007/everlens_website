@@ -149,7 +149,14 @@ export async function GET(request: NextRequest) {
         allPosts = allPosts.filter((p) => p.featured);
       }
 
-      return NextResponse.json({ posts: allPosts });
+      return NextResponse.json(
+        { posts: allPosts },
+        {
+          headers: {
+            'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+          },
+        }
+      );
     } catch (dbErr) {
       console.warn('MongoDB connection unavailable, serving portfolio from memoryStore:', dbErr);
     }
@@ -164,7 +171,14 @@ export async function GET(request: NextRequest) {
       posts = posts.filter((p: any) => p.featured);
     }
 
-    return NextResponse.json({ posts });
+    return NextResponse.json(
+      { posts },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+        },
+      }
+    );
   } catch (error: any) {
     console.error('Failed to retrieve portfolio posts:', error);
     return NextResponse.json(

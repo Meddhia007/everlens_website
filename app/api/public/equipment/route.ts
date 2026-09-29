@@ -33,23 +33,37 @@ export async function GET() {
       featuredIn: item.featuredIn || [],
     }));
 
-    return NextResponse.json({ equipment: formatted });
+    return NextResponse.json(
+      { equipment: formatted },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+        },
+      }
+    );
   } catch (error: any) {
     // Graceful fallback to memoryStore
-    return NextResponse.json({
-      equipment: memoryStore.equipment
-        .filter((item) => item.active !== false)
-        .map((item) => ({
-          id: item._id,
-          name: item.name,
-          category: item.category,
-          role: item.role,
-          badge: item.badge || '',
-          icon: item.icon || 'Camera',
-          keyFeatures: item.keyFeatures || [],
-          specs: item.specs || [],
-          featuredIn: item.featuredIn || [],
-        })),
-    });
+    return NextResponse.json(
+      {
+        equipment: memoryStore.equipment
+          .filter((item) => item.active !== false)
+          .map((item) => ({
+            id: item._id,
+            name: item.name,
+            category: item.category,
+            role: item.role,
+            badge: item.badge || '',
+            icon: item.icon || 'Camera',
+            keyFeatures: item.keyFeatures || [],
+            specs: item.specs || [],
+            featuredIn: item.featuredIn || [],
+          })),
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+        },
+      }
+    );
   }
 }

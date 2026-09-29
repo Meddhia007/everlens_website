@@ -43,7 +43,14 @@ export async function GET() {
       order: item.order || 0,
     }));
 
-    return NextResponse.json({ services: formatted, packs: formatted });
+    return NextResponse.json(
+      { services: formatted, packs: formatted },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+        },
+      }
+    );
   } catch (error: any) {
     const formatted = memoryStore.services
       .filter((s) => s.active !== false)
@@ -60,9 +67,16 @@ export async function GET() {
         order: s.order || 0,
       }));
 
-    return NextResponse.json({
-      services: formatted,
-      packs: formatted,
-    });
+    return NextResponse.json(
+      {
+        services: formatted,
+        packs: formatted,
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+        },
+      }
+    );
   }
 }
