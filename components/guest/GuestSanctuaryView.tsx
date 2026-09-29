@@ -13,15 +13,27 @@ interface GuestSanctuaryViewProps {
   coupleNames: string;
   weddingDate?: string;
   initialMedia: PortalMediaItem[];
+  token?: string;
 }
 
 export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
   coupleNames,
   weddingDate,
   initialMedia,
+  token,
 }) => {
-  // Active Tab state
-  const [activeTab, setActiveTab] = useState<MediaCategory>('ceremony');
+  // Ensure guest session cookie is verified/stored in background for single-item downloads and streaming
+  React.useEffect(() => {
+    if (!token) return;
+    fetch(`/api/guest/${token}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    }).catch(() => {});
+  }, [token]);
+
+  // Active Tab state (default to 'all' for instant, complete viewing)
+  const [activeTab, setActiveTab] = useState<string>('all');
 
   // Lightbox state
   const [lightboxIndex, setLightboxIndex] = useState<number>(-1);
@@ -32,7 +44,8 @@ export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
 
   // Counts per category
   const counts = useMemo(() => {
-    const map: Record<MediaCategory, number> = {
+    const map: Record<string, number> = {
+      all: initialMedia.length,
       'getting-ready': 0,
       ceremony: 0,
       'couples-portraits': 0,
@@ -41,30 +54,67 @@ export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
     };
 
     initialMedia.forEach((item) => {
-      const cat = item.category as MediaCategory;
-      if (map[cat] !== undefined) {
-        map[cat] += 1;
+      if (item.type === 'video') {
+        map['films'] = (map['films'] || 0) + 1;
+      }
+      const cat = (item.category || '').toLowerCase().trim();
+      if (cat && cat !== 'films') {
+        if (map[cat] !== undefined) {
+          map[cat] += 1;
+        } else {
+          map[cat] = 1;
+        }
       }
     });
 
     return map;
   }, [initialMedia]);
 
-  // Set default active tab to first category with media
-  React.useEffect(() => {
-    const firstWithItems = PORTAL_TABS.find((t) => counts[t.id] > 0);
-    if (firstWithItems) {
-      setActiveTab(firstWithItems.id);
-    }
+  // Guest tabs list: standard chapters + any extra custom categories that have media
+  const guestTabs = useMemo(() => {
+    const standardTabs: { id: string; label: string }[] = [
+      { id: 'all', label: 'All' },
+      { id: 'getting-ready', label: 'Getting Ready' },
+      { id: 'ceremony', label: 'Ceremony' },
+      { id: 'couples-portraits', label: 'Couples & Portraits' },
+      { id: 'reception', label: 'Reception & Party' },
+      { id: 'films', label: 'Films & Teasers' },
+    ];
+
+    const knownIds = new Set(standardTabs.map((t) => t.id));
+    const extraCategories: { id: string; label: string }[] = [];
+
+    Object.keys(counts).forEach((catId) => {
+      if (!knownIds.has(catId) && counts[catId] > 0) {
+        let label = catId
+          .split('-')
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ');
+        if (catId === 'traditional') label = 'Traditional / Wteya';
+        if (catId === 'editorial') label = 'Editorial';
+        if (catId === 'photography') label = 'Photographs';
+        extraCategories.push({ id: catId, label });
+      }
+    });
+
+    return [...standardTabs, ...extraCategories];
   }, [counts]);
 
   // Filter media for current tab
   const currentTabMedia = useMemo(() => {
+    if (activeTab === 'all') {
+      return initialMedia;
+    }
+    if (activeTab === 'films') {
+      return initialMedia.filter(
+        (item) => item.category === 'films' || item.type === 'video'
+      );
+    }
     return initialMedia.filter((item) => item.category === activeTab);
   }, [initialMedia, activeTab]);
 
   const activeTabLabel =
-    PORTAL_TABS.find((t) => t.id === activeTab)?.label || 'Collection';
+    guestTabs.find((t) => t.id === activeTab)?.label || 'Collection';
 
   // Lightbox navigation
   const handleOpenLightbox = (index: number) => {
@@ -162,6 +212,8 @@ export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
             activeTab={activeTab}
             onSelectTab={setActiveTab}
             counts={counts}
+            tabs={guestTabs}
+            theme="light"
           />
 
           {/* Editorial Masonry Grid (Guest mode: zero hearts, zero notes) */}

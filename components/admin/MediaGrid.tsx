@@ -38,10 +38,14 @@ export interface MediaCategoryOption {
 }
 
 const DEFAULT_PORTFOLIO_CATEGORIES: MediaCategoryOption[] = [
-  { value: 'films', label: 'Films' },
-  { value: 'photography', label: 'Photography' },
+  { value: 'ceremony', label: 'Ceremony' },
+  { value: 'getting-ready', label: 'Getting Ready' },
+  { value: 'couples-portraits', label: 'Couples & Portraits' },
+  { value: 'reception', label: 'Reception & Party' },
+  { value: 'films', label: 'Films & Teasers' },
   { value: 'traditional', label: 'Traditional / Wteya' },
   { value: 'editorial', label: 'Editorial' },
+  { value: 'photography', label: 'Photography (General)' },
 ];
 
 export const MediaGrid: React.FC<MediaGridProps> = ({

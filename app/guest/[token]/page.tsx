@@ -141,6 +141,7 @@ export default async function GuestPage({ params }: GuestPageProps) {
       coupleNames={gallery.coupleNames}
       weddingDate={weddingDateStr}
       initialMedia={mediaList}
+      token={token}
     />
   );
 }

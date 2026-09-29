@@ -34,12 +34,28 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
 }) => {
   if (items.length === 0) {
     return (
-      <div className="py-20 text-center space-y-2 border border-[#EAE8DA]/10 rounded-[14px] bg-[#171D1C]/60">
-        <p className="font-serif text-lg text-[#EAE8DA]/80">
-          No photographs in your gallery yet.
+      <div
+        className={`py-20 text-center space-y-2 rounded-[14px] ${
+          isGuest
+            ? 'border border-ink/10 bg-cream-deep/30'
+            : 'border border-[#EAE8DA]/10 bg-[#171D1C]/60'
+        }`}
+      >
+        <p
+          className={`font-serif text-lg ${
+            isGuest ? 'text-ink/80' : 'text-[#EAE8DA]/80'
+          }`}
+        >
+          No photographs in this collection yet.
         </p>
-        <p className="text-xs font-sans text-[#EAE8DA]/45 max-w-sm mx-auto leading-relaxed">
-          Your wedding memories will appear here once ready.
+        <p
+          className={`text-xs font-sans max-w-sm mx-auto leading-relaxed ${
+            isGuest ? 'text-ink/50' : 'text-[#EAE8DA]/45'
+          }`}
+        >
+          {isGuest
+            ? 'Photographs for this chapter will appear here once ready.'
+            : 'Your wedding memories will appear here once ready.'}
         </p>
       </div>
     );
@@ -59,7 +75,9 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
           >
             {/* Image Container with natural proportions and quiet hover lift */}
             <div
-              className={`relative rounded-[14px] overflow-hidden bg-[#171D1C] card-lift transition-all duration-300 group-hover:brightness-105 ${
+              className={`relative rounded-[14px] overflow-hidden ${
+                isGuest ? 'bg-cream-deep/40' : 'bg-[#171D1C]'
+              } card-lift transition-all duration-300 group-hover:brightness-105 ${
                 item.type === 'video' ? 'aspect-[16/9]' : ''
               } ${
                 isSelected ? 'ring-2 ring-[#43B19F] ring-offset-2 ring-offset-[#0F1413]' : ''
@@ -132,9 +150,21 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
                 />
               ) : (
                 /* Fallback Placeholder */
-                <div className="w-full aspect-[4/5] flex flex-col items-center justify-center text-[#EAE8DA]/30 space-y-2 p-4 text-center">
-                  <ImageIcon className="w-6 h-6 text-[#EAE8DA]/25" />
-                  <span className="text-[11px] font-sans text-[#EAE8DA]/40">
+                <div
+                  className={`w-full aspect-[4/5] flex flex-col items-center justify-center space-y-2 p-4 text-center ${
+                    isGuest ? 'text-ink/30' : 'text-[#EAE8DA]/30'
+                  }`}
+                >
+                  <ImageIcon
+                    className={`w-6 h-6 ${
+                      isGuest ? 'text-ink/25' : 'text-[#EAE8DA]/25'
+                    }`}
+                  />
+                  <span
+                    className={`text-[11px] font-sans ${
+                      isGuest ? 'text-ink/40' : 'text-[#EAE8DA]/40'
+                    }`}
+                  >
                     Photograph
                   </span>
                 </div>
