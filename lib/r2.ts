@@ -36,9 +36,16 @@ if (R2_ENDPOINT) {
   }
 }
 
-const R2_PUBLIC_DOMAIN =
+const rawPublicDomain =
   cleanEnv(process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN) ||
   cleanEnv(process.env.R2_PUBLIC_DOMAIN);
+
+const R2_PUBLIC_DOMAIN =
+  rawPublicDomain &&
+  !rawPublicDomain.includes('vercel.app') &&
+  !rawPublicDomain.includes('localhost')
+    ? rawPublicDomain
+    : undefined;
 
 export const isMockR2 =
   !R2_ACCESS_KEY_ID ||
