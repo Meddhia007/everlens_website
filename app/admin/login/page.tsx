@@ -84,7 +84,11 @@ function AdminLoginForm() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5 text-left">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5 text-left">
+          {/* Hidden inputs to prevent aggressive browser autofill popups */}
+          <input type="text" className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+          <input type="password" className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+
           <div className="space-y-1.5">
             <label
               htmlFor="admin-email"
@@ -94,12 +98,19 @@ function AdminLoginForm() {
             </label>
             <input
               id="admin-email"
+              name="studio_login_email"
               type="email"
-              autoComplete="email"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-form-type="other"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@everlensweddings.com"
+              placeholder="Enter your email"
               className="w-full bg-[#182220] text-white placeholder:text-white/30 border border-white/10 focus:border-teal focus:ring-1 focus:ring-teal focus:outline-none py-2.5 px-3 text-xs rounded-xs transition-all"
             />
           </div>
@@ -115,12 +126,19 @@ function AdminLoginForm() {
             </div>
             <input
               id="admin-password"
+              name="studio_login_password"
               type="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-form-type="other"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
+              placeholder="Enter your password"
               className="w-full bg-[#182220] text-white placeholder:text-white/30 border border-white/10 focus:border-teal focus:ring-1 focus:ring-teal focus:outline-none py-2.5 px-3 text-xs rounded-xs transition-all"
             />
           </div>

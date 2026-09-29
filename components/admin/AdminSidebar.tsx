@@ -101,6 +101,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ adminEmail }) => {
         },
       ],
     },
+    {
+      title: 'SETTINGS',
+      items: [
+        {
+          label: 'Admin Accounts',
+          href: '/admin/admins',
+          icon: ShieldCheck,
+          isActive: pathname.startsWith('/admin/admins'),
+        },
+      ],
+    },
   ];
 
   const sidebarContent = (
@@ -191,10 +202,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ adminEmail }) => {
 
         {/* Admin Account & Sign Out */}
         <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#9EABA2] truncate max-w-[130px]">
-            <ShieldCheck className="w-3.5 h-3.5 text-teal shrink-0" />
+          <Link
+            href="/admin/admins"
+            className="flex items-center gap-1.5 text-[11px] font-mono text-[#9EABA2] hover:text-teal transition-colors truncate max-w-[130px] group"
+            title="Manage Admin Accounts"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-teal shrink-0 group-hover:scale-110 transition-transform" />
             <span className="truncate">{adminEmail || 'Admin'}</span>
-          </div>
+          </Link>
 
           <SignOutButton
             type="admin"

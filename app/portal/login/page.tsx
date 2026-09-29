@@ -78,7 +78,11 @@ function ClientLoginForm() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6 text-left">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-6 text-left">
+          {/* Hidden inputs to prevent aggressive browser autofill popups */}
+          <input type="text" className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+          <input type="password" className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+
           <div className="space-y-2">
             <label
               htmlFor="client-email"
@@ -88,12 +92,19 @@ function ClientLoginForm() {
             </label>
             <input
               id="client-email"
+              name="client_portal_email"
               type="email"
-              autoComplete="email"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-form-type="other"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="sarah.youssef@example.com"
+              placeholder="Enter your email"
               className="w-full bg-cream/70 text-ink placeholder:text-ink/35 border-b border-ink/40 focus:border-ink focus:outline-none py-2.5 px-1 text-body transition-colors rounded-none"
             />
           </div>
@@ -107,12 +118,19 @@ function ClientLoginForm() {
             </label>
             <input
               id="gallery-password"
+              name="client_portal_password"
               type="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-form-type="other"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
+              placeholder="Enter your gallery password"
               className="w-full bg-cream/70 text-ink placeholder:text-ink/35 border-b border-ink/40 focus:border-ink focus:outline-none py-2.5 px-1 text-body transition-colors rounded-none"
             />
           </div>
