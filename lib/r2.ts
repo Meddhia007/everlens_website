@@ -150,7 +150,13 @@ export async function ensureR2CorsConfigured(): Promise<boolean> {
               AllowedHeaders: ['*'],
               AllowedMethods: ['GET', 'PUT', 'HEAD', 'POST', 'DELETE'],
               AllowedOrigins: ['*'],
-              ExposeHeaders: ['ETag'],
+              ExposeHeaders: [
+                'ETag',
+                'Content-Range',
+                'Accept-Ranges',
+                'Content-Length',
+                'Content-Type',
+              ],
               MaxAgeSeconds: 3600,
             },
           ],
@@ -231,13 +237,27 @@ export async function getPresignedDownloadUrl(
             return `https://${cleanDomain}/${extractedKey}`;
           }
 
+          const isVideo =
+            extractedKey.includes('/films/') ||
+            extractedKey.includes('/videos/') ||
+            /\.(mp4|mov|webm|m4v)$/i.test(extractedKey);
+
+          let resolvedContentType = options?.contentType;
+          if (!resolvedContentType && isVideo) {
+            if (extractedKey.toLowerCase().endsWith('.webm')) {
+              resolvedContentType = 'video/webm';
+            } else {
+              resolvedContentType = 'video/mp4';
+            }
+          }
+
           const command = new GetObjectCommand({
             Bucket: bucket,
             Key: extractedKey,
             ResponseContentDisposition: options?.downloadFilename
               ? `attachment; filename="${options.downloadFilename.replace(/"/g, '')}"`
               : undefined,
-            ResponseContentType: options?.contentType,
+            ResponseContentType: resolvedContentType,
           });
           return await getSignedUrl(r2Client, command, {
             expiresIn: expiresInSeconds,
@@ -293,13 +313,27 @@ export async function getPresignedDownloadUrl(
     return `https://${cleanDomain}/${cleanKey}`;
   }
 
+  const isVideo =
+    cleanKey.includes('/films/') ||
+    cleanKey.includes('/videos/') ||
+    /\.(mp4|mov|webm|m4v)$/i.test(cleanKey);
+
+  let resolvedContentType = options?.contentType;
+  if (!resolvedContentType && isVideo) {
+    if (cleanKey.toLowerCase().endsWith('.webm')) {
+      resolvedContentType = 'video/webm';
+    } else {
+      resolvedContentType = 'video/mp4';
+    }
+  }
+
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: cleanKey,
     ResponseContentDisposition: options?.downloadFilename
       ? `attachment; filename="${options.downloadFilename.replace(/"/g, '')}"`
       : undefined,
-    ResponseContentType: options?.contentType,
+    ResponseContentType: resolvedContentType,
   });
 
   return getSignedUrl(r2Client, command, {

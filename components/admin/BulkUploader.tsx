@@ -215,8 +215,9 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
       };
 
       xhr.open('PUT', uploadUrl);
-      xhr.withCredentials = true;
-      xhr.setRequestHeader('Content-Type', item.file.type || 'application/octet-stream');
+      const effectiveContentType =
+        item.file.type || (item.type === 'video' ? 'video/mp4' : 'image/jpeg');
+      xhr.setRequestHeader('Content-Type', effectiveContentType);
       xhr.send(item.file);
     },
     [galleryId, onUploadComplete]

@@ -322,6 +322,7 @@ export const PortalLightbox: React.FC<PortalLightboxProps> = ({
               src={videoStreamUrl}
               isLoading={isVideoLoading}
               emptyText="Video stream is preparing."
+              downloadFilename={currentItem.originalFilename}
             />
           ) : currentItem.url ? (
             <img

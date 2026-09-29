@@ -260,9 +260,8 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open('PUT', uploadUrl, true);
-          if (file.type) {
-            xhr.setRequestHeader('Content-Type', file.type);
-          }
+          const effectiveContentType = file.type || (isVideo ? (filename.toLowerCase().endsWith('.mov') ? 'video/quicktime' : 'video/mp4') : 'image/jpeg');
+          xhr.setRequestHeader('Content-Type', effectiveContentType);
           if (xhr.upload && onProgress) {
             xhr.upload.onprogress = (event) => {
               if (event.lengthComputable && event.total > 0) {

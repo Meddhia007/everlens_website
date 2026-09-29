@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { VideoPlayer } from '@/components/shared/VideoPlayer';
 import { clsx } from 'clsx';
 
@@ -170,6 +170,21 @@ export const PortfolioCarouselModal: React.FC<PortfolioCarouselModalProps> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
+        {/* Direct Download Button for Videos */}
+        {isVideo && videoSource && (
+          <a
+            href={videoSource}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute top-[max(12px,env(safe-area-inset-top))] right-16 sm:-top-11 sm:right-11 z-30 h-10 px-3.5 flex items-center gap-1.5 text-xs font-sans text-white/90 hover:text-white bg-black/70 hover:bg-black/90 rounded-full backdrop-blur-xs transition-colors cursor-pointer shadow-lg active:scale-95 border border-white/10"
+            title="Download master video file"
+          >
+            <Download className="w-4 h-4 text-teal" />
+            <span className="hidden sm:inline">Download Video</span>
+          </a>
+        )}
+
         {/* Close Button on top-right of media with notch safe-area handling */}
         <button
           type="button"
@@ -202,6 +217,7 @@ export const PortfolioCarouselModal: React.FC<PortfolioCarouselModalProps> = ({
                 autoPlay={true}
                 controls={true}
                 playsInline={true}
+                downloadFilename={post.title ? `${post.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.mp4` : 'wedding-film.mp4'}
                 className="max-h-[82vh] sm:max-h-[88vh] max-w-[94vw] sm:max-w-[92vw] object-contain rounded-none sm:rounded-[6px] shadow-2xl"
               />
             </div>
