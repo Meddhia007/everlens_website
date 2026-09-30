@@ -17,6 +17,51 @@ export interface VideoPlayerProps {
   downloadFilename?: string;
 }
 
+export interface ParsedVideo {
+  type: 'vimeo' | 'youtube' | 'cloudflare-stream' | 'native';
+  embedUrl?: string;
+  directUrl?: string;
+}
+
+export function parseVideoSource(url?: string | null): ParsedVideo {
+  if (!url) return { type: 'native' };
+  const trimmed = url.trim();
+
+  // 1. Vimeo: https://vimeo.com/123456789 or https://vimeo.com/123456789/abcdef or player.vimeo.com/video/123456789
+  const vimeoMatch = trimmed.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)(?:\/([a-zA-Z0-9]+))?/);
+  if (vimeoMatch) {
+    const videoId = vimeoMatch[1];
+    const hash = vimeoMatch[2];
+    const hashParam = hash ? `&h=${hash}` : '';
+    return {
+      type: 'vimeo',
+      embedUrl: `https://player.vimeo.com/video/${videoId}?autoplay=1&muted=0&title=0&byline=0&portrait=0&color=43B19F&dnt=1${hashParam}`,
+    };
+  }
+
+  // 2. YouTube: https://www.youtube.com/watch?v=XYZ, https://youtu.be/XYZ, /embed/, /shorts/
+  const ytMatch = trimmed.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch) {
+    const videoId = ytMatch[1];
+    return {
+      type: 'youtube',
+      embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1`,
+    };
+  }
+
+  // 3. Cloudflare Stream: https://iframe.videodelivery.net/<id> or https://watch.videodelivery.net/<id>
+  const cfStreamMatch = trimmed.match(/(?:videodelivery\.net\/(?:[a-zA-Z0-9_-]+\/|embed\/)?)([a-zA-Z0-9_-]{32})/);
+  if (cfStreamMatch) {
+    const streamId = cfStreamMatch[1];
+    return {
+      type: 'cloudflare-stream',
+      embedUrl: `https://iframe.videodelivery.net/${streamId}?autoplay=true&preload=true`,
+    };
+  }
+
+  return { type: 'native', directUrl: trimmed };
+}
+
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   src,
   poster,
@@ -90,6 +135,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   if (src) {
+    const parsed = parseVideoSource(src);
+
+    // If external stream (Vimeo, YouTube, Cloudflare Stream), render embed iframe with luxury styling
+    if (parsed.type !== 'native' && parsed.embedUrl) {
+      return (
+        <div
+          className={clsx(
+            'relative w-[92vw] sm:w-[86vw] md:w-[78vw] max-w-[1100px] aspect-video flex items-center justify-center rounded-xs sm:rounded-[6px] overflow-hidden shadow-2xl bg-black border border-white/10',
+            className
+          )}
+        >
+          <iframe
+            src={parsed.embedUrl}
+            className="w-full h-full border-0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            title="EverLens Wedding Cinema"
+          />
+        </div>
+      );
+    }
+
     const isMov = src.toLowerCase().includes('.mov');
     const cleanPoster =
       poster && !poster.includes('.mp4') && !poster.includes('.mov') ? poster : undefined;

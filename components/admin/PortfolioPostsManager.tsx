@@ -1241,16 +1241,24 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-mono uppercase text-cream/70">
-                    Video URL (For Films)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-mono uppercase text-cream/70 flex items-center gap-1.5">
+                      <span>Video Stream URL (Vimeo / YouTube / Cloudflare / MP4)</span>
+                    </label>
+                    <span className="text-[10px] font-mono text-teal/80 bg-teal/10 px-2 py-0.5 rounded-full border border-teal/20">
+                      Zero-Lag Streaming
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={formVideoUrl}
                     onChange={(e) => setFormVideoUrl(e.target.value)}
-                    placeholder="/portfolio/videos/reel-1.mp4"
+                    placeholder="https://vimeo.com/... or https://youtu.be/... or direct .mp4 URL"
                     className="w-full bg-ink-3 border border-cream/15 rounded-[8px] p-2 text-xs text-cream focus:border-teal outline-none font-mono"
                   />
+                  <p className="text-[10px] text-cream/50 leading-relaxed">
+                    Paste a <span className="text-cream/80 font-medium">Vimeo link</span> or <span className="text-cream/80 font-medium">YouTube unlisted link</span> for instant adaptive streaming with zero buffering, or use Cloudflare Stream / direct MP4.
+                  </p>
                 </div>
               </div>
 

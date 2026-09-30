@@ -36,16 +36,25 @@ if (R2_ENDPOINT) {
   }
 }
 
-const rawPublicDomain =
-  cleanEnv(process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN) ||
-  cleanEnv(process.env.R2_PUBLIC_DOMAIN);
+function sanitizePublicDomain(domain?: string): string | undefined {
+  if (!domain) return undefined;
+  let clean = cleanEnv(domain);
+  if (!clean) return undefined;
+  clean = clean.replace(/^https?:\/\//i, '').replace(/\/+$/, '').trim();
+  if (
+    !clean ||
+    clean.includes('vercel.app') ||
+    clean.includes('localhost') ||
+    clean.includes('r2.cloudflarestorage.com')
+  ) {
+    return undefined;
+  }
+  return clean;
+}
 
 const R2_PUBLIC_DOMAIN =
-  rawPublicDomain &&
-  !rawPublicDomain.includes('vercel.app') &&
-  !rawPublicDomain.includes('localhost')
-    ? rawPublicDomain
-    : undefined;
+  sanitizePublicDomain(process.env.R2_PUBLIC_DOMAIN) ||
+  sanitizePublicDomain(process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN);
 
 export const isMockR2 =
   !R2_ACCESS_KEY_ID ||

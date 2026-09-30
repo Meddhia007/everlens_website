@@ -149,10 +149,13 @@ export const PortfolioCarouselModal: React.FC<PortfolioCarouselModalProps> = ({
     currentSlide.url?.includes('.mp4') ||
     currentSlide.url?.includes('.mov') ||
     currentSlide.url?.includes('.webm') ||
-    ((post.category?.toLowerCase() === 'film' || post.category?.toLowerCase() === 'films') && Boolean(post.videoUrl) && slideIndex === 0);
+    currentSlide.url?.includes('vimeo.com') ||
+    currentSlide.url?.includes('youtu') ||
+    currentSlide.url?.includes('videodelivery.net') ||
+    Boolean(post.videoUrl && slideIndex === 0);
 
   const videoSource = isVideo
-    ? (currentSlide.type === 'video' ? currentSlide.url : post.videoUrl || currentSlide.url)
+    ? (currentSlide.type === 'video' ? (currentSlide.url || post.videoUrl) : (post.videoUrl || currentSlide.url))
     : null;
 
   return (
