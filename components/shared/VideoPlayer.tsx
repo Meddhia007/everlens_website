@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Film, Download, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Film, AlertTriangle, RefreshCw } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export interface VideoPlayerProps {
@@ -109,22 +109,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </p>
           </div>
 
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href={src}
-              download={downloadFilename || 'wedding-film.mp4'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#43B19F] hover:bg-[#EAE8DA] text-[#0F1413] rounded-xs text-xs font-semibold tracking-wide transition-all shadow-md cursor-pointer select-none"
-            >
-              <Download className="w-4 h-4 stroke-[2.5]" />
-              <span>Download Master Video</span>
-            </a>
-
+          <div className="pt-2 flex items-center justify-center">
             <button
               type="button"
               onClick={handleRetry}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-[#EAE8DA]/25 hover:border-[#43B19F] hover:text-[#43B19F] rounded-xs text-xs font-medium text-[#EAE8DA] transition-all cursor-pointer select-none"
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#43B19F] hover:bg-[#EAE8DA] text-[#0F1413] rounded-xs text-xs font-semibold tracking-wide transition-all shadow-md cursor-pointer select-none"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Retry Playback</span>
@@ -139,7 +128,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
 
     return (
-      <div className="relative group max-h-[82vh] max-w-[92vw] flex items-center justify-center">
+      <div className="relative max-h-[82vh] max-w-[92vw] flex items-center justify-center">
         <video
           key={`${src}-${retryKey}`}
           controls={controls}
@@ -159,21 +148,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <source src={src} type="video/mp4" />
           Your browser does not support HTML5 video playback.
         </video>
-
-        {/* Floating Quick Download affordance on top-left of video player */}
-        <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-          <a
-            href={src}
-            download={downloadFilename || 'wedding-film.mp4'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 hover:bg-black text-xs font-sans text-[#EAE8DA] hover:text-[#43B19F] border border-white/20 backdrop-blur-xs shadow-lg transition-all"
-            title="Download original master video file"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="text-[11px] font-medium">Download Original</span>
-          </a>
-        </div>
       </div>
     );
   }

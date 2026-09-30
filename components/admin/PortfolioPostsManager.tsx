@@ -1378,7 +1378,22 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                             isCover ? 'border-teal ring-2 ring-teal' : 'border-cream/20'
                           )}
                         >
-                          <img src={m.url} alt="" className="w-full h-full object-cover" />
+                          {m.type === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(m.url) ? (
+                            <div className="w-full h-full relative flex items-center justify-center bg-black/60">
+                              <video
+                                src={m.url}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="w-full h-full object-cover pointer-events-none opacity-70"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <Film className="w-6 h-6 text-teal drop-shadow-md" />
+                              </div>
+                            </div>
+                          ) : (
+                            <img src={m.url} alt="" className="w-full h-full object-cover" />
+                          )}
 
                           {/* Cover badge */}
                           {isCover && (

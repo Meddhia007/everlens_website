@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Heart, Download, ChevronLeft, ChevronRight, Film } from 'lucide-react';
+import { X, Heart, ChevronLeft, ChevronRight, Film } from 'lucide-react';
 import { PortfolioItem, portfolioData } from './PortfolioSection';
 import { VideoPlayer } from '@/components/shared/VideoPlayer';
 import { clsx } from 'clsx';
@@ -155,19 +155,6 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({ item, onClose }) =
               )}
             />
           </button>
-
-          {(!isFilm || videoStreamUrl) && (
-            <a
-              href={isFilm ? videoStreamUrl! : currentPhoto.image}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-white/80 hover:text-white transition-colors cursor-pointer"
-              aria-label={isFilm ? 'Download film' : 'Download image'}
-            >
-              <Download className="w-5 h-5" />
-            </a>
-          )}
 
           <button
             type="button"
