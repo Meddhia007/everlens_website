@@ -132,6 +132,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       <div className="relative max-h-[82vh] max-w-[92vw] flex items-center justify-center">
         <video
           key={`${src}-${retryKey}`}
+          src={src || undefined}
           controls={controls}
           autoPlay={autoPlay}
           muted={autoPlay} // Safari requires muted for autoplay
