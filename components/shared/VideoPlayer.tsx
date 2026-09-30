@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Film, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Film, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export interface VideoPlayerProps {
@@ -35,6 +35,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     hint: 'Large master files (e.g. 2GB) or cinema-grade codecs (ProRes, 10-bit color, uncompressed audio) require downloading to play in QuickTime or VLC.',
   });
   const [retryKey, setRetryKey] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(false);
 
   if (isLoading) {
     return (
@@ -135,8 +136,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           autoPlay={autoPlay}
           muted={autoPlay} // Safari requires muted for autoplay
           playsInline={playsInline}
-          preload="metadata"
+          preload="auto"
           poster={cleanPoster}
+          onWaiting={() => setIsBuffering(true)}
+          onPlaying={() => setIsBuffering(false)}
+          onCanPlay={() => setIsBuffering(false)}
+          onCanPlayThrough={() => setIsBuffering(false)}
           onError={handleVideoError}
           className={clsx(
             'max-h-[80vh] max-w-[90vw] rounded-xs border border-white/10 focus:outline-none bg-black shadow-2xl',
@@ -148,6 +153,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <source src={src} type="video/mp4" />
           Your browser does not support HTML5 video playback.
         </video>
+
+        {/* Buffering Indicator */}
+        {isBuffering && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none z-10 transition-opacity">
+            <div className="p-3.5 rounded-full bg-black/70 border border-teal/40 backdrop-blur-xs shadow-xl animate-pulse">
+              <Loader2 className="w-6 h-6 text-teal animate-spin" />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
