@@ -123,6 +123,12 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
         post.media?.some((m) => m.type === 'video')
       );
     }
+    if (activeFilter === 'teaser' || activeFilter === 'teasers') {
+      return itemCat === 'teaser' || itemCat === 'teasers';
+    }
+    if (activeFilter === 'reel' || activeFilter === 'reels') {
+      return itemCat === 'reel' || itemCat === 'reels';
+    }
     if (activeFilter === 'traditional' || activeFilter === 'traditionnel') {
       return itemCat === 'traditional' || itemCat === 'traditionnel';
     }

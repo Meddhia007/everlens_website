@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
         { posts: allPosts },
         {
           headers: {
-            'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
           },
         }
       );
@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
       { posts },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         },
       }
     );
