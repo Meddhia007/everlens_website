@@ -136,6 +136,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         updateData.coverImage = updateData.media[0].url;
       }
     }
+    if (!updateData.coverImage && updateData.videoUrl) {
+      const ytMatch = updateData.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+      if (ytMatch) {
+        updateData.coverImage = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+      }
+    }
     if (body.featured !== undefined) updateData.featured = Boolean(body.featured);
     if (body.order !== undefined) updateData.order = Number(body.order) || 0;
 

@@ -216,12 +216,33 @@ export async function POST(request: NextRequest) {
     // Single post creation
     const { title, location, year, category, coverImage, videoUrl, media, featured, order } = body;
 
-    const mediaList = Array.isArray(media) ? media : [];
-    const resolvedCover = coverImage || mediaList[0]?.url || '';
+    const trimmedVideo = typeof videoUrl === 'string' ? videoUrl.trim() : '';
+    let mediaList = Array.isArray(media) ? [...media] : [];
+    let resolvedCover = coverImage || mediaList[0]?.url || '';
 
-    if (!resolvedCover) {
+    // If no cover image was uploaded but a video URL is provided, derive thumbnail
+    if (!resolvedCover && trimmedVideo) {
+      const ytMatch = trimmedVideo.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+      if (ytMatch) {
+        resolvedCover = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+      } else {
+        resolvedCover = trimmedVideo;
+      }
+    }
+
+    // If no media slides but a video URL is provided, automatically add the video slide
+    if (mediaList.length === 0 && trimmedVideo) {
+      mediaList.push({
+        url: trimmedVideo,
+        type: 'video',
+        caption: title?.trim() || 'Wedding Film',
+        aspectRatio: '4/5',
+      });
+    }
+
+    if (!resolvedCover && mediaList.length === 0) {
       return NextResponse.json(
-        { error: 'At least one photo or cover image is required for a portfolio post' },
+        { error: 'Please upload at least one photo or provide a video stream URL' },
         { status: 400 }
       );
     }

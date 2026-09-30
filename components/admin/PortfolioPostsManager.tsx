@@ -675,8 +675,34 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
 
   // Save Single Post
   const handleSavePost = async () => {
-    if (formMedia.length === 0 && !formCoverImage) {
-      alert('Please upload at least one photo or provide a cover image.');
+    const trimmedVideo = formVideoUrl.trim();
+    let effectiveCover = formCoverImage.trim();
+
+    // Auto-detect YouTube thumbnail if no custom cover was uploaded
+    if (!effectiveCover && trimmedVideo) {
+      const ytMatch = trimmedVideo.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+      if (ytMatch) {
+        effectiveCover = `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+      }
+    }
+
+    let effectiveMedia = [...formMedia];
+    if (effectiveMedia.length === 0 && trimmedVideo) {
+      effectiveMedia = [
+        {
+          url: trimmedVideo,
+          type: 'video',
+          caption: formTitle.trim() || 'Wedding Film',
+          aspectRatio: postRatio || '4:5',
+        },
+      ];
+      if (!effectiveCover) {
+        effectiveCover = trimmedVideo;
+      }
+    }
+
+    if (effectiveMedia.length === 0 && !effectiveCover && !trimmedVideo) {
+      alert('Please upload at least one photo or enter a Video Stream URL.');
       return;
     }
 
@@ -687,9 +713,9 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
         location: formLocation.trim() || 'Tunisia',
         year: formYear.trim() || new Date().getFullYear().toString(),
         category: formCategory.trim(),
-        videoUrl: formVideoUrl.trim(),
-        coverImage: formCoverImage || formMedia[0]?.url,
-        media: formMedia,
+        videoUrl: trimmedVideo,
+        coverImage: effectiveCover || effectiveMedia[0]?.url,
+        media: effectiveMedia,
         featured: formFeatured,
         order: Number(formOrder) || 1,
       };
@@ -1357,6 +1383,38 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                           className="bg-teal h-full transition-all duration-150 ease-out shadow-[0_0_8px_rgba(67,177,159,0.5)]"
                           style={{ width: `${Math.max(2, uploadPercent)}%` }}
                         />
+                      </div>
+                    </div>
+                  ) : formVideoUrl.trim() ? (
+                    <div className="border border-teal/30 bg-teal/5 rounded-[14px] p-5 space-y-3">
+                      <div className="flex items-center gap-4">
+                        {formVideoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/) ? (
+                          <img
+                            src={`https://img.youtube.com/vi/${formVideoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)![1]}/hqdefault.jpg`}
+                            alt="YouTube Thumbnail"
+                            className="w-28 aspect-[4/5] object-cover rounded-[8px] border border-white/10 shadow-lg"
+                          />
+                        ) : (
+                          <div className="w-16 h-20 rounded-[8px] bg-teal/15 border border-teal/30 flex items-center justify-center text-teal">
+                            <Film className="w-7 h-7" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono uppercase text-teal font-semibold tracking-wider">
+                              Film Ready to Publish
+                            </span>
+                            <span className="text-[10px] font-mono bg-teal/15 text-teal px-2 py-0.5 rounded-full border border-teal/30">
+                              No Photos Required
+                            </span>
+                          </div>
+                          <p className="text-xs text-cream/90 font-mono truncate">
+                            {formVideoUrl}
+                          </p>
+                          <p className="text-[11px] text-cream/50 leading-relaxed pt-1">
+                            The video thumbnail will be automatically displayed on the portfolio grid. (Optional: click &ldquo;Upload Media&rdquo; above if you want to upload a custom wedding photo cover).
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ) : (
