@@ -180,7 +180,7 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
       setFormTitle(post.title);
       setFormLocation(post.location || '');
       setFormYear(post.year || '2024');
-      setFormCategory(post.category || 'photography');
+      setFormCategory(post.category || (categories.find((c) => c.slug !== 'all')?.slug || 'teaser'));
       setFormVideoUrl(post.videoUrl || '');
       setFormMedia(post.media || []);
       setFormCoverImage(post.coverImage || post.media?.[0]?.url || '');
@@ -193,7 +193,8 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
       setFormTitle('');
       setFormLocation('Tunisia · 2024');
       setFormYear('2024');
-      setFormCategory('photography');
+      const defaultCat = categories.find((c) => c.slug !== 'all')?.slug || 'teaser';
+      setFormCategory(defaultCat);
       setFormVideoUrl('');
       setFormMedia([]);
       setFormCoverImage('');
@@ -706,13 +707,19 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
       return;
     }
 
+    let finalCategory = formCategory.trim().toLowerCase();
+    const validCategorySlugs = categories.filter((c) => c.slug !== 'all').map((c) => c.slug.toLowerCase());
+    if (validCategorySlugs.length > 0 && !validCategorySlugs.includes(finalCategory)) {
+      finalCategory = validCategorySlugs[0];
+    }
+
     setIsSaving(true);
     try {
       const payload = {
         title: formTitle.trim() || editingPost?.title || `Moment #${formOrder || Date.now().toString(36).slice(-4)}`,
         location: formLocation.trim() || 'Tunisia',
         year: formYear.trim() || new Date().getFullYear().toString(),
-        category: formCategory.trim(),
+        category: finalCategory,
         videoUrl: trimmedVideo,
         coverImage: effectiveCover || effectiveMedia[0]?.url,
         media: effectiveMedia,
@@ -1233,7 +1240,11 @@ export const PortfolioPostsManager: React.FC<PortfolioPostsManagerProps> = ({
                     Category
                   </label>
                   <select
-                    value={formCategory}
+                    value={
+                      categories.some((c) => c.slug.toLowerCase() === formCategory.toLowerCase())
+                        ? formCategory
+                        : (categories.find((c) => c.slug !== 'all')?.slug || formCategory)
+                    }
                     onChange={(e) => setFormCategory(e.target.value)}
                     className="w-full bg-ink-3 border border-cream/15 rounded-[8px] p-2 text-xs text-cream focus:border-teal outline-none"
                   >
