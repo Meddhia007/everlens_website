@@ -17,11 +17,9 @@ interface CategoryTabsProps {
 }
 
 export const PORTAL_TABS: TabItem[] = [
-  { id: 'getting-ready', label: 'Getting Ready' },
-  { id: 'ceremony', label: 'Ceremony' },
-  { id: 'couples-portraits', label: 'Couples & Portraits' },
-  { id: 'reception', label: 'Reception & Party' },
-  { id: 'films', label: 'Films & Teasers' },
+  { id: 'all', label: 'Photos & Videos' },
+  { id: 'photos', label: 'Photos' },
+  { id: 'videos', label: 'Videos' },
 ];
 
 export const CategoryTabs: React.FC<CategoryTabsProps> = ({

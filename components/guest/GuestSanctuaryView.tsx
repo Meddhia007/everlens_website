@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { MediaCategory } from '@/models/MediaItem';
-import { CategoryTabs, PORTAL_TABS } from '../portal/CategoryTabs';
+import { CategoryTabs } from '../portal/CategoryTabs';
 import { EditorialMasonryGrid } from '../portal/EditorialMasonryGrid';
 import { PortalLightbox, PortalMediaItem } from '../portal/PortalLightbox';
 import { formatEditorialDate } from '@/lib/date';
@@ -42,75 +41,33 @@ export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
   // Batch download alert state
   const [showBatchAlert, setShowBatchAlert] = useState(false);
 
-  // Counts per category
+  // Counts per type
   const counts = useMemo(() => {
-    const map: Record<string, number> = {
+    return {
       all: initialMedia.length,
-      'getting-ready': 0,
-      ceremony: 0,
-      'couples-portraits': 0,
-      reception: 0,
-      films: 0,
+      photos: initialMedia.filter((m) => m.type === 'photo').length,
+      videos: initialMedia.filter((m) => m.type === 'video').length,
     };
-
-    initialMedia.forEach((item) => {
-      if (item.type === 'video') {
-        map['films'] = (map['films'] || 0) + 1;
-      }
-      const cat = (item.category || '').toLowerCase().trim();
-      if (cat && cat !== 'films') {
-        if (map[cat] !== undefined) {
-          map[cat] += 1;
-        } else {
-          map[cat] = 1;
-        }
-      }
-    });
-
-    return map;
   }, [initialMedia]);
 
-  // Guest tabs list: standard chapters + any extra custom categories that have media
+  // Guest tabs list: strictly Photos & Videos, Photos, Videos
   const guestTabs = useMemo(() => {
-    const standardTabs: { id: string; label: string }[] = [
-      { id: 'all', label: 'All' },
-      { id: 'getting-ready', label: 'Getting Ready' },
-      { id: 'ceremony', label: 'Ceremony' },
-      { id: 'couples-portraits', label: 'Couples & Portraits' },
-      { id: 'reception', label: 'Reception & Party' },
-      { id: 'films', label: 'Films & Teasers' },
+    return [
+      { id: 'all', label: 'Photos & Videos' },
+      { id: 'photos', label: 'Photos' },
+      { id: 'videos', label: 'Videos' },
     ];
-
-    const knownIds = new Set(standardTabs.map((t) => t.id));
-    const extraCategories: { id: string; label: string }[] = [];
-
-    Object.keys(counts).forEach((catId) => {
-      if (!knownIds.has(catId) && counts[catId] > 0) {
-        let label = catId
-          .split('-')
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(' ');
-        if (catId === 'traditional') label = 'Traditional / Wteya';
-        if (catId === 'editorial') label = 'Editorial';
-        if (catId === 'photography') label = 'Photographs';
-        extraCategories.push({ id: catId, label });
-      }
-    });
-
-    return [...standardTabs, ...extraCategories];
-  }, [counts]);
+  }, []);
 
   // Filter media for current tab
   const currentTabMedia = useMemo(() => {
-    if (activeTab === 'all') {
-      return initialMedia;
+    if (activeTab === 'photos') {
+      return initialMedia.filter((item) => item.type === 'photo');
     }
-    if (activeTab === 'films') {
-      return initialMedia.filter(
-        (item) => item.category === 'films' || item.type === 'video'
-      );
+    if (activeTab === 'videos') {
+      return initialMedia.filter((item) => item.type === 'video');
     }
-    return initialMedia.filter((item) => item.category === activeTab);
+    return initialMedia;
   }, [initialMedia, activeTab]);
 
   const activeTabLabel =

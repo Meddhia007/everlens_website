@@ -35,6 +35,7 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
   onCommentPhoto,
 }) => {
   if (items.length === 0) {
+    const isVideoSection = chapterLabel.toLowerCase().includes('video') || chapterLabel.toLowerCase().includes('film');
     return (
       <div
         className={`py-20 text-center space-y-2 rounded-[14px] ${
@@ -48,7 +49,7 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
             isGuest ? 'text-ink/80' : 'text-[#EAE8DA]/80'
           }`}
         >
-          No photographs in this collection yet.
+          {isVideoSection ? 'No videos in this collection yet.' : 'No photographs in this collection yet.'}
         </p>
         <p
           className={`text-xs font-sans max-w-sm mx-auto leading-relaxed ${
@@ -56,7 +57,9 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
           }`}
         >
           {isGuest
-            ? 'Photographs for this chapter will appear here once ready.'
+            ? isVideoSection
+              ? 'Videos for this collection will appear here once ready.'
+              : 'Photographs for this collection will appear here once ready.'
             : 'Your wedding memories will appear here once ready.'}
         </p>
       </div>

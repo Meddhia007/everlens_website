@@ -32,93 +32,24 @@ interface MediaGridProps {
   onItemDeleted?: (deletedId: string) => void;
 }
 
-export interface MediaCategoryOption {
-  value: string;
-  label: string;
-}
-
-const DEFAULT_PORTFOLIO_CATEGORIES: MediaCategoryOption[] = [
-  { value: 'ceremony', label: 'Ceremony' },
-  { value: 'getting-ready', label: 'Getting Ready' },
-  { value: 'couples-portraits', label: 'Couples & Portraits' },
-  { value: 'reception', label: 'Reception & Party' },
-  { value: 'films', label: 'Films & Teasers' },
-  { value: 'traditional', label: 'Traditional / Wteya' },
-  { value: 'editorial', label: 'Editorial' },
-  { value: 'photography', label: 'Photography (General)' },
-];
-
 export const MediaGrid: React.FC<MediaGridProps> = ({
   items,
   onItemUpdated,
   onItemDeleted,
 }) => {
-  const [categoryOptions, setCategoryOptions] = useState<MediaCategoryOption[]>(DEFAULT_PORTFOLIO_CATEGORIES);
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterType, setFilterType] = useState<'all' | MediaType>('all');
+  const [filterType, setFilterType] = useState<'all' | 'photo' | 'video'>('all');
   const [filterPortfolioOnly, setFilterPortfolioOnly] = useState(false);
 
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errorId, setErrorId] = useState<{ id: string; msg: string } | null>(null);
 
-  // Dynamically load all portfolio categories
-  React.useEffect(() => {
-    fetch('/api/admin/work-categories', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : fetch('/api/public/work-categories').then((r) => r.json())))
-      .then((data) => {
-        if (data?.categories && Array.isArray(data.categories) && data.categories.length > 0) {
-          const dynamicOptions: MediaCategoryOption[] = data.categories
-            .filter((c: any) => c.active !== false)
-            .map((c: any) => ({
-              value: (c.slug || c.name).toLowerCase(),
-              label: c.name,
-            }));
-          setCategoryOptions((prev) => {
-            const existingValues = new Set(dynamicOptions.map((d) => d.value.toLowerCase()));
-            const remaining = prev.filter((p) => !existingValues.has(p.value.toLowerCase()));
-            return [...dynamicOptions, ...remaining];
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
-
   // Filtered items
   const filteredItems = items.filter((item) => {
-    if (filterCategory !== 'all' && item.category?.toLowerCase() !== filterCategory.toLowerCase()) return false;
     if (filterType !== 'all' && item.type !== filterType) return false;
     if (filterPortfolioOnly && !item.isPublicPortfolio) return false;
     return true;
   });
-
-  // Handle Category Change
-  const handleCategoryChange = async (itemId: string, newCategory: string) => {
-    setSavingId(itemId);
-    setErrorId(null);
-
-    try {
-      const res = await fetch(`/api/admin/media/${itemId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: newCategory }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to update category');
-      }
-
-      if (onItemUpdated) {
-        onItemUpdated(data.mediaItem);
-      }
-    } catch (err: any) {
-      setErrorId({ id: itemId, msg: err?.message || 'Update failed' });
-    } finally {
-      setSavingId(null);
-    }
-  };
 
   // Handle Public Portfolio Toggle
   const handlePortfolioToggle = async (itemId: string, checked: boolean) => {
@@ -186,29 +117,15 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
             <span>Filter:</span>
           </span>
 
-          {/* Category Filter */}
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="bg-[#182220] border border-white/10 rounded-xs px-2.5 py-1 text-xs text-white focus:outline-none focus:border-teal"
-          >
-            <option value="all">All Categories</option>
-            {categoryOptions.map((cat) => (
-              <option key={cat.value} value={cat.value}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
-
           {/* Type Filter */}
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as any)}
-            className="bg-[#182220] border border-white/10 rounded-xs px-2.5 py-1 text-xs text-white focus:outline-none focus:border-teal"
+            className="bg-[#182220] border border-white/10 rounded-xs px-2.5 py-1 text-xs text-white focus:outline-none focus:border-teal cursor-pointer"
           >
-            <option value="all">Photos &amp; Films</option>
-            <option value="photo">Photos Only</option>
-            <option value="video">Films Only</option>
+            <option value="all">Photos &amp; Videos</option>
+            <option value="photo">Photos</option>
+            <option value="video">Videos</option>
           </select>
 
           {/* Portfolio Only Checkbox */}
@@ -302,32 +219,6 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   )}
-                </div>
-
-                {/* Category Dropdown */}
-                <div className="space-y-1">
-                  <label className="block text-[10px] text-[#9EABA2] uppercase font-mono tracking-wider font-medium">
-                    Category
-                  </label>
-                  <select
-                    value={item.category}
-                    onChange={(e) =>
-                      handleCategoryChange(item._id, e.target.value)
-                    }
-                    disabled={savingId === item._id}
-                    className="w-full bg-[#182220] border border-white/10 rounded-xs px-2.5 py-1 text-[11px] text-white focus:outline-none focus:border-teal transition-colors capitalize"
-                  >
-                    {!categoryOptions.some((c) => c.value.toLowerCase() === item.category?.toLowerCase()) && (
-                      <option value={item.category}>
-                        {item.category}
-                      </option>
-                    )}
-                    {categoryOptions.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                  </select>
                 </div>
 
                 {/* Feature on Public Portfolio Checkbox */}
