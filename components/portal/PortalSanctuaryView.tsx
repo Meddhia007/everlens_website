@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { EditorialMasonryGrid } from './EditorialMasonryGrid';
+import { CategoryTabs, TabItem } from './CategoryTabs';
 import { PortalLightbox, PortalMediaItem } from './PortalLightbox';
 import { DownloadRequestsPanel, ClientDownloadRequest } from './DownloadRequestsPanel';
 import { PortalHomeView, ProductionStage } from './PortalHomeView';
@@ -9,6 +10,7 @@ import { PortalVideosView } from './PortalVideosView';
 import { PortalAlbumView } from './PortalAlbumView';
 import { PhotoCommentModal } from './PhotoCommentModal';
 import { usePortalContext } from './PortalContext';
+import { extractClientGalleryCategories, formatCategoryLabel } from '@/lib/categories';
 import { ArrowRight, BookOpen } from 'lucide-react';
 
 interface PortalSanctuaryViewProps {
@@ -86,6 +88,9 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
   const [lightboxIndex, setLightboxIndex] = useState<number>(-1);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
+  // Active Photo Celebration Category Filter
+  const [selectedPhotoCategory, setSelectedPhotoCategory] = useState<string>('all');
+
   // Separate photos and videos (pure, continuous streams)
   const photos = useMemo(() => {
     return initialMedia.filter((m) => m.type === 'photo');
@@ -94,6 +99,47 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
   const videos = useMemo(() => {
     return initialMedia.filter((m) => m.type === 'video');
   }, [initialMedia]);
+
+  // Extract client's own celebration categories (strictly this gallery)
+  const photoCategories = useMemo(() => {
+    return extractClientGalleryCategories(photos);
+  }, [photos]);
+
+  const allClientCategories = useMemo(() => {
+    return extractClientGalleryCategories(initialMedia);
+  }, [initialMedia]);
+
+  const hasMultiplePhotoCategories = photoCategories.length > 1;
+
+  const photoTabs: TabItem[] = useMemo(() => {
+    if (!hasMultiplePhotoCategories) return [];
+    return [
+      { id: 'all', label: 'All Photos' },
+      ...photoCategories.map((c) => ({
+        id: c.slug,
+        label: c.label,
+      })),
+    ];
+  }, [hasMultiplePhotoCategories, photoCategories]);
+
+  const photoTabCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: photos.length };
+    photoCategories.forEach((c) => {
+      counts[c.slug] = c.photoCount;
+    });
+    return counts;
+  }, [photos.length, photoCategories]);
+
+  const displayedPhotos = useMemo(() => {
+    if (!hasMultiplePhotoCategories || selectedPhotoCategory === 'all') {
+      return photos;
+    }
+    return photos.filter((p) => {
+      let cat = (p.category || '').toLowerCase().trim();
+      if (!cat || cat === 'photography') cat = 'mariage';
+      return cat === selectedPhotoCategory;
+    });
+  }, [photos, hasMultiplePhotoCategories, selectedPhotoCategory]);
 
   const selectedPhotos = useMemo(() => {
     return photos.filter((p) => selectedIds.has(p._id));
@@ -251,15 +297,15 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
 
   // Lightbox handlers
   const handleOpenPhotoLightbox = (index: number) => {
-    setLightboxItems(photos);
+    setLightboxItems(displayedPhotos);
     setLightboxIndex(index);
     setIsLightboxOpen(true);
   };
 
   const handleOpenSelectedPhotoLightbox = (item: PortalMediaItem) => {
-    const idx = photos.findIndex((p) => p._id === item._id);
+    const idx = displayedPhotos.findIndex((p) => p._id === item._id);
     if (idx !== -1) {
-      setLightboxItems(photos);
+      setLightboxItems(displayedPhotos);
       setLightboxIndex(idx);
     } else {
       setLightboxItems(selectedPhotos);
@@ -299,13 +345,18 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
           maxAlbumCap={maxAlbumCap}
           productionStage={productionStage}
           stageHistory={stageHistory}
+          clientCategories={allClientCategories}
+          onSelectCategory={(catSlug) => {
+            setSelectedPhotoCategory(catSlug);
+            navigateToSection('photos');
+          }}
           onViewPhotos={() => navigateToSection('photos')}
           onWatchVideos={() => navigateToSection('videos')}
           onViewAlbum={() => navigateToSection('album')}
         />
       )}
 
-      {/* ================= 2. PHOTOS VIEW (CONTINUOUS, NO CATEGORIES) ================= */}
+      {/* ================= 2. PHOTOS VIEW (WITH CLIENT CELEBRATION TABS) ================= */}
       {activeSection === 'photos' && (
         <section className="space-y-8 animate-hero-content">
           {/* Header */}
@@ -314,15 +365,33 @@ export const PortalSanctuaryView: React.FC<PortalSanctuaryViewProps> = ({
               Photos
             </h2>
             <p className="text-sm font-sans text-[#EAE8DA]/60">
-              {photos.length} photographs
+              {displayedPhotos.length} {displayedPhotos.length === 1 ? 'photograph' : 'photographs'}
+              {hasMultiplePhotoCategories && selectedPhotoCategory !== 'all' && (
+                <span> in {formatCategoryLabel(selectedPhotoCategory)}</span>
+              )}
             </p>
           </div>
 
-          {/* Continuous Grid */}
+          {/* Celebration Category Tabs (strictly only client's celebrations) */}
+          {hasMultiplePhotoCategories && (
+            <CategoryTabs
+              activeTab={selectedPhotoCategory}
+              onSelectTab={setSelectedPhotoCategory}
+              counts={photoTabCounts}
+              tabs={photoTabs}
+              theme="dark"
+            />
+          )}
+
+          {/* Continuous Masonry Grid */}
           <EditorialMasonryGrid
-            items={photos}
+            items={displayedPhotos}
             onItemClick={handleOpenPhotoLightbox}
-            chapterLabel="Photos"
+            chapterLabel={
+              hasMultiplePhotoCategories && selectedPhotoCategory !== 'all'
+                ? formatCategoryLabel(selectedPhotoCategory)
+                : 'Photos'
+            }
             selectedIds={selectedIds}
             onToggleSelect={handleToggleSelect}
             notes={notes}

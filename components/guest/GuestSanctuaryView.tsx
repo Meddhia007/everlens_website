@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { CategoryTabs } from '../portal/CategoryTabs';
+import { CategoryTabs, TabItem } from '../portal/CategoryTabs';
 import { EditorialMasonryGrid } from '../portal/EditorialMasonryGrid';
 import { PortalLightbox, PortalMediaItem } from '../portal/PortalLightbox';
+import { extractClientGalleryCategories, formatCategoryLabel } from '@/lib/categories';
 import { formatEditorialDate } from '@/lib/date';
 import { Logo } from '@/components/Logo';
 import { Download, Clock } from 'lucide-react';
@@ -31,8 +32,16 @@ export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
     }).catch(() => {});
   }, [token]);
 
-  // Active Tab state (default to 'all' for instant, complete viewing)
-  const [activeTab, setActiveTab] = useState<string>('all');
+  // Extract ONLY categories present in this client's gallery
+  const clientCategories = useMemo(() => {
+    return extractClientGalleryCategories(initialMedia);
+  }, [initialMedia]);
+
+  const hasMultipleCelebrations = clientCategories.length > 1;
+
+  // Active Category tab (or active type tab if single celebration)
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'photo' | 'video'>('all');
 
   // Lightbox state
   const [lightboxIndex, setLightboxIndex] = useState<number>(-1);
@@ -41,37 +50,98 @@ export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
   // Batch download alert state
   const [showBatchAlert, setShowBatchAlert] = useState(false);
 
-  // Counts per type
-  const counts = useMemo(() => {
+  const photoCount = initialMedia.filter((m) => m.type === 'photo').length;
+  const filmCount = initialMedia.filter((m) => m.type === 'video').length;
+
+  // Dynamic Tabs definition
+  const guestTabs: TabItem[] = useMemo(() => {
+    if (hasMultipleCelebrations) {
+      return [
+        { id: 'all', label: 'All Celebrations' },
+        ...clientCategories.map((c) => ({
+          id: c.slug,
+          label: c.label,
+        })),
+      ];
+    }
+
+    // Single category: tab by format
+    const tabs: TabItem[] = [{ id: 'all', label: 'Photos & Videos' }];
+    if (photoCount > 0) tabs.push({ id: 'photos', label: 'Photos' });
+    if (filmCount > 0) tabs.push({ id: 'videos', label: 'Videos' });
+    return tabs;
+  }, [hasMultipleCelebrations, clientCategories, photoCount, filmCount]);
+
+  // Tab counts
+  const tabCounts = useMemo(() => {
+    if (hasMultipleCelebrations) {
+      const counts: Record<string, number> = { all: initialMedia.length };
+      clientCategories.forEach((c) => {
+        counts[c.slug] = c.totalCount;
+      });
+      return counts;
+    }
+
     return {
       all: initialMedia.length,
-      photos: initialMedia.filter((m) => m.type === 'photo').length,
-      videos: initialMedia.filter((m) => m.type === 'video').length,
+      photos: photoCount,
+      videos: filmCount,
     };
-  }, [initialMedia]);
+  }, [hasMultipleCelebrations, clientCategories, initialMedia.length, photoCount, filmCount]);
 
-  // Guest tabs list: strictly Photos & Videos, Photos, Videos
-  const guestTabs = useMemo(() => {
-    return [
-      { id: 'all', label: 'Photos & Videos' },
-      { id: 'photos', label: 'Photos' },
-      { id: 'videos', label: 'Videos' },
-    ];
-  }, []);
+  // Counts for the secondary type filter under the active celebration
+  const activeCelebrationTypeCounts = useMemo(() => {
+    const subset =
+      activeCategoryTab === 'all'
+        ? initialMedia
+        : initialMedia.filter((item) => {
+            let cat = (item.category || '').toLowerCase().trim();
+            if (!cat || cat === 'photography') cat = 'mariage';
+            return cat === activeCategoryTab;
+          });
 
-  // Filter media for current tab
+    return {
+      all: subset.length,
+      photo: subset.filter((m) => m.type === 'photo').length,
+      video: subset.filter((m) => m.type === 'video').length,
+    };
+  }, [initialMedia, activeCategoryTab]);
+
+  // Filter media for current selection
   const currentTabMedia = useMemo(() => {
-    if (activeTab === 'photos') {
+    if (hasMultipleCelebrations) {
+      let filtered = initialMedia;
+      if (activeCategoryTab !== 'all') {
+        filtered = filtered.filter((item) => {
+          let cat = (item.category || '').toLowerCase().trim();
+          if (!cat || cat === 'photography') cat = 'mariage';
+          return cat === activeCategoryTab;
+        });
+      }
+      if (mediaTypeFilter !== 'all') {
+        filtered = filtered.filter((item) => item.type === mediaTypeFilter);
+      }
+      return filtered;
+    }
+
+    // Single celebration mode
+    if (activeCategoryTab === 'photos') {
       return initialMedia.filter((item) => item.type === 'photo');
     }
-    if (activeTab === 'videos') {
+    if (activeCategoryTab === 'videos') {
       return initialMedia.filter((item) => item.type === 'video');
     }
     return initialMedia;
-  }, [initialMedia, activeTab]);
+  }, [initialMedia, hasMultipleCelebrations, activeCategoryTab, mediaTypeFilter]);
 
-  const activeTabLabel =
-    guestTabs.find((t) => t.id === activeTab)?.label || 'Collection';
+  const activeTabLabel = useMemo(() => {
+    if (hasMultipleCelebrations) {
+      if (activeCategoryTab === 'all') return 'All Celebrations';
+      const cat = clientCategories.find((c) => c.slug === activeCategoryTab);
+      return cat?.label || formatCategoryLabel(activeCategoryTab);
+    }
+    return guestTabs.find((t) => t.id === activeCategoryTab)?.label || 'Collection';
+  }, [hasMultipleCelebrations, activeCategoryTab, clientCategories, guestTabs]);
 
   // Lightbox navigation
   const handleOpenLightbox = (index: number) => {
@@ -86,9 +156,6 @@ export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
   const handleNavigateLightbox = (newIndex: number) => {
     setLightboxIndex(newIndex);
   };
-
-  const photoCount = initialMedia.filter((m) => m.type === 'photo').length;
-  const filmCount = initialMedia.filter((m) => m.type === 'video').length;
 
   return (
     <div className="min-h-screen bg-cream text-ink font-sans pb-24">
@@ -164,14 +231,41 @@ export const GuestSanctuaryView: React.FC<GuestSanctuaryViewProps> = ({
         </header>
 
         {/* Chapter Navigation Tabs */}
-        <section className="space-y-8">
+        <section className="space-y-6">
           <CategoryTabs
-            activeTab={activeTab}
-            onSelectTab={setActiveTab}
-            counts={counts}
+            activeTab={activeCategoryTab}
+            onSelectTab={setActiveCategoryTab}
+            counts={tabCounts}
             tabs={guestTabs}
             theme="light"
           />
+
+          {/* Secondary Type / Format Filter Pills (only when multiple celebrations and films exist) */}
+          {hasMultipleCelebrations && filmCount > 0 && (
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
+              <span className="text-[11px] font-sans text-ink/50 uppercase tracking-wider mr-1">
+                Format:
+              </span>
+              {[
+                { id: 'all', label: `All (${activeCelebrationTypeCounts.all})` },
+                { id: 'photo', label: `Photos (${activeCelebrationTypeCounts.photo})` },
+                { id: 'video', label: `Videos (${activeCelebrationTypeCounts.video})` },
+              ].map((btn) => (
+                <button
+                  key={btn.id}
+                  type="button"
+                  onClick={() => setMediaTypeFilter(btn.id as any)}
+                  className={`px-3 py-1 rounded-full text-xs font-sans transition-colors cursor-pointer ${
+                    mediaTypeFilter === btn.id
+                      ? 'bg-ink text-cream font-medium shadow-xs'
+                      : 'bg-cream-deep/60 hover:bg-cream-deep text-ink/75 border border-ink/10'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Editorial Masonry Grid (Guest mode: zero hearts, zero notes) */}
           <EditorialMasonryGrid

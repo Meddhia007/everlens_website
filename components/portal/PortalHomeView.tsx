@@ -4,6 +4,8 @@ import React from 'react';
 import { Image as ImageIcon, PlayCircle, BookOpen, ArrowRight, Check } from 'lucide-react';
 import { formatEditorialDate } from '@/lib/date';
 
+import { GalleryCategoryMeta } from '@/lib/categories';
+
 export type ProductionStage =
   | 'files_uploaded'
   | 'editing_photos'
@@ -67,6 +69,8 @@ interface PortalHomeViewProps {
   maxAlbumCap?: number;
   productionStage?: ProductionStage;
   stageHistory?: Array<{ stage: string; reachedAt: string }>;
+  clientCategories?: GalleryCategoryMeta[];
+  onSelectCategory?: (categorySlug: string) => void;
   onViewPhotos: () => void;
   onWatchVideos: () => void;
   onViewAlbum: () => void;
@@ -82,6 +86,8 @@ export const PortalHomeView: React.FC<PortalHomeViewProps> = ({
   maxAlbumCap = 50,
   productionStage = 'files_uploaded',
   stageHistory = [],
+  clientCategories = [],
+  onSelectCategory,
   onViewPhotos,
   onWatchVideos,
   onViewAlbum,
@@ -252,7 +258,62 @@ export const PortalHomeView: React.FC<PortalHomeViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Three Clean Summary Cards */}
+      {/* 3. Celebration Chapters Breakdown (Only this couple's celebrations) */}
+      {clientCategories && clientCategories.length > 1 && (
+        <div className="bg-[#171D1C] border border-[#EAE8DA]/10 rounded-xs p-6 sm:p-8 space-y-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#EAE8DA]/10 pb-4">
+            <div>
+              <p className="text-[11px] font-sans tracking-[0.2em] uppercase text-[#43B19F] font-semibold">
+                Your Celebrations
+              </p>
+              <h2 className="font-serif text-2xl sm:text-3xl text-[#EAE8DA] font-medium tracking-tight">
+                Celebration Chapters
+              </h2>
+            </div>
+            <p className="text-xs text-[#EAE8DA]/60 font-sans">
+              {clientCategories.length} celebration events documented in your collection
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {clientCategories.map((cat) => (
+              <button
+                key={cat.slug}
+                type="button"
+                onClick={() => {
+                  if (onSelectCategory) {
+                    onSelectCategory(cat.slug);
+                  } else {
+                    onViewPhotos();
+                  }
+                }}
+                className="group p-5 bg-[#121615] hover:bg-[#151C1A] border border-white/5 hover:border-[#43B19F]/40 rounded-xs text-left flex flex-col justify-between space-y-4 transition-all duration-200 cursor-pointer shadow-sm select-none"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif text-lg text-[#EAE8DA] group-hover:text-[#43B19F] transition-colors font-medium">
+                      {cat.label}
+                    </h3>
+                    <span className="w-2 h-2 rounded-full bg-[#43B19F]/40 group-hover:bg-[#43B19F] transition-colors" />
+                  </div>
+                  <p className="text-xs font-sans text-[#EAE8DA]/50">
+                    {cat.photoCount > 0 && `${cat.photoCount} photos`}
+                    {cat.photoCount > 0 && cat.videoCount > 0 && ' · '}
+                    {cat.videoCount > 0 && `${cat.videoCount} ${cat.videoCount === 1 ? 'film' : 'films'}`}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-xs font-sans text-[#43B19F] font-medium">
+                  <span>View Chapter</span>
+                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Three Clean Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Photos Card */}
         <div

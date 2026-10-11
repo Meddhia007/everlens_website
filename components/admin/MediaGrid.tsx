@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { MediaCategory, MediaType } from '@/models/MediaItem';
+import { formatCategoryLabel } from '@/lib/categories';
 import {
   Image as ImageIcon,
   Film,
@@ -41,16 +42,48 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   onItemDeleted,
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'photo' | 'video'>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterPortfolioOnly, setFilterPortfolioOnly] = useState(false);
 
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errorId, setErrorId] = useState<{ id: string; msg: string } | null>(null);
 
+  // Compute celebration category choices
+  const categoryOptions = useMemo(() => {
+    const list: Array<{ slug: string; label: string }> = [
+      { slug: 'mariage', label: 'Mariage' },
+      { slug: 'wteya', label: 'Wteya' },
+      { slug: 'henna-arousa', label: 'Henna Arousa' },
+      { slug: 'henna-arous', label: 'Henna Arous' },
+      { slug: 'hammem', label: 'Hammem' },
+      { slug: 'thour', label: 'Thour' },
+      { slug: 'teaser', label: 'Teaser' },
+      { slug: 'reels', label: 'Reels' },
+      { slug: 'films', label: 'Films' },
+      { slug: 'ceremony', label: 'Ceremony' },
+      { slug: 'getting-ready', label: 'Getting Ready' },
+    ];
+
+    items.forEach((item) => {
+      const catSlug = (item.category || '').toLowerCase().trim();
+      if (catSlug && !list.some((c) => c.slug === catSlug)) {
+        list.push({ slug: catSlug, label: formatCategoryLabel(catSlug) });
+      }
+    });
+
+    return list;
+  }, [items]);
+
   // Filtered items
   const filteredItems = items.filter((item) => {
     if (filterType !== 'all' && item.type !== filterType) return false;
     if (filterPortfolioOnly && !item.isPublicPortfolio) return false;
+    if (filterCategory !== 'all') {
+      let cat = (item.category || '').toLowerCase().trim();
+      if (!cat || cat === 'photography') cat = 'mariage';
+      if (cat !== filterCategory) return false;
+    }
     return true;
   });
 
@@ -70,6 +103,34 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to update portfolio flag');
+      }
+
+      if (onItemUpdated) {
+        onItemUpdated(data.mediaItem);
+      }
+    } catch (err: any) {
+      setErrorId({ id: itemId, msg: err?.message || 'Update failed' });
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  // Handle Category Change
+  const handleCategoryChange = async (itemId: string, newCategory: string) => {
+    setSavingId(itemId);
+    setErrorId(null);
+
+    try {
+      const res = await fetch(`/api/admin/media/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: newCategory }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update category');
       }
 
       if (onItemUpdated) {
@@ -129,6 +190,20 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
             <option value="all">Photos &amp; Videos</option>
             <option value="photo">Photos</option>
             <option value="video">Videos</option>
+          </select>
+
+          {/* Category / Celebration Filter */}
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="bg-[#182220] border border-white/10 rounded-xs px-2.5 py-1 text-xs text-teal font-medium focus:outline-none focus:border-teal cursor-pointer"
+          >
+            <option value="all">All Celebrations</option>
+            {categoryOptions.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.label}
+              </option>
+            ))}
           </select>
 
           {/* Portfolio Only Checkbox */}
@@ -198,10 +273,13 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
                   </div>
                 )}
 
-                {/* Type Badge */}
-                <div className="absolute top-2 left-2">
+                {/* Type & Celebration Badges */}
+                <div className="absolute top-2 left-2 flex items-center gap-1.5 flex-wrap">
                   <span className="bg-black/75 text-white text-[9px] font-mono px-1.5 py-0.5 rounded-2xs uppercase tracking-wider border border-white/10">
                     {item.type}
+                  </span>
+                  <span className="bg-teal text-[#0B0F0E] text-[9px] font-mono px-1.5 py-0.5 rounded-2xs uppercase tracking-wider font-bold">
+                    {formatCategoryLabel(item.category)}
                   </span>
                 </div>
 
@@ -236,6 +314,23 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
                       <Download className="w-3 h-3" />
                     </a>
                   )}
+                </div>
+
+                {/* Celebration Category Selector Row */}
+                <div className="pt-1.5 flex items-center justify-between gap-2 border-t border-white/[0.06] text-[11px]">
+                  <span className="text-[#9EABA2]">Celebration:</span>
+                  <select
+                    value={(item.category || (item.type === 'video' ? 'films' : 'mariage')).toLowerCase().trim()}
+                    disabled={savingId === item._id}
+                    onChange={(e) => handleCategoryChange(item._id, e.target.value)}
+                    className="bg-[#182220] border border-white/10 rounded-xs px-2 py-0.5 text-[11px] text-teal font-medium hover:border-teal/50 focus:outline-none focus:border-teal cursor-pointer"
+                  >
+                    {categoryOptions.map((c) => (
+                      <option key={c.slug} value={c.slug}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Feature on Public Portfolio Checkbox */}

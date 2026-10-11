@@ -1,7 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { PortalMediaItem } from './PortalLightbox';
+import { CategoryTabs, TabItem } from './CategoryTabs';
+import { extractClientGalleryCategories, formatCategoryLabel } from '@/lib/categories';
 import { Play, PlayCircle, Download } from 'lucide-react';
 
 interface PortalVideosViewProps {
@@ -15,6 +17,43 @@ export const PortalVideosView: React.FC<PortalVideosViewProps> = ({
   onPlayVideo,
   onDownloadVideo,
 }) => {
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  // Extract client's own video categories
+  const videoCategories = useMemo(() => {
+    return extractClientGalleryCategories(videos);
+  }, [videos]);
+
+  const hasMultipleCategories = videoCategories.length > 1;
+
+  const videoTabs: TabItem[] = useMemo(() => {
+    if (!hasMultipleCategories) return [];
+    return [
+      { id: 'all', label: 'All Videos' },
+      ...videoCategories.map((c) => ({
+        id: c.slug,
+        label: c.label,
+      })),
+    ];
+  }, [hasMultipleCategories, videoCategories]);
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: videos.length };
+    videoCategories.forEach((c) => {
+      counts[c.slug] = c.videoCount;
+    });
+    return counts;
+  }, [videos.length, videoCategories]);
+
+  const filteredVideos = useMemo(() => {
+    if (!hasMultipleCategories || activeCategory === 'all') return videos;
+    return videos.filter((v) => {
+      let cat = (v.category || '').toLowerCase().trim();
+      if (!cat || cat === 'films') cat = 'mariage';
+      return cat === activeCategory;
+    });
+  }, [videos, hasMultipleCategories, activeCategory]);
+
   // Helper to format clean display title from filename
   const formatVideoTitle = (filename: string, index: number) => {
     const clean = filename
@@ -37,26 +76,42 @@ export const PortalVideosView: React.FC<PortalVideosViewProps> = ({
           Videos
         </h2>
         <p className="text-sm font-sans text-[#EAE8DA]/60">
-          {videos.length} {videos.length === 1 ? 'video' : 'videos'}
+          {filteredVideos.length} {filteredVideos.length === 1 ? 'video' : 'videos'}
+          {hasMultipleCategories && activeCategory !== 'all' && (
+            <span> in {formatCategoryLabel(activeCategory)}</span>
+          )}
         </p>
       </div>
 
+      {/* Category Tabs (if client has videos across multiple celebrations) */}
+      {hasMultipleCategories && (
+        <CategoryTabs
+          activeTab={activeCategory}
+          onSelectTab={setActiveCategory}
+          counts={tabCounts}
+          tabs={videoTabs}
+          theme="dark"
+        />
+      )}
+
       {/* Videos List / Empty State */}
-      {videos.length === 0 ? (
+      {filteredVideos.length === 0 ? (
         <div className="py-20 text-center space-y-3 border border-[#EAE8DA]/10 rounded-xs bg-[#171D1C]/60 p-8">
           <div className="w-12 h-12 rounded-full bg-[#43B19F]/10 border border-[#43B19F]/20 flex items-center justify-center text-[#43B19F] mx-auto">
             <PlayCircle className="w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-serif text-xl text-[#EAE8DA] font-medium">No videos yet</h3>
+            <h3 className="font-serif text-xl text-[#EAE8DA] font-medium">No videos found</h3>
             <p className="text-xs sm:text-sm font-sans text-[#EAE8DA]/60 max-w-sm mx-auto leading-relaxed">
-              Your wedding videos will appear here when they&apos;re ready.
+              {hasMultipleCategories && activeCategory !== 'all'
+                ? `No videos cataloged under ${formatCategoryLabel(activeCategory)} yet.`
+                : 'Your wedding videos will appear here when they are ready.'}
             </p>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {videos.map((video, index) => {
+          {filteredVideos.map((video, index) => {
             const title = formatVideoTitle(video.originalFilename, index);
 
             return (
@@ -92,9 +147,14 @@ export const PortalVideosView: React.FC<PortalVideosViewProps> = ({
                     <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-current ml-1" />
                   </div>
 
-                  {/* Top Badge: 4K / HD Video */}
-                  <div className="absolute top-4 left-4 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-[#EAE8DA]/80 text-[10px] uppercase font-sans tracking-widest">
-                    Cinematic Video
+                  {/* Top Badges: Category & Video Format */}
+                  <div className="absolute top-4 left-4 flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-1 rounded-full bg-[#43B19F]/20 border border-[#43B19F]/40 text-[#43B19F] text-[10px] uppercase font-mono tracking-widest font-semibold backdrop-blur-xs">
+                      {formatCategoryLabel(video.category)}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-[#EAE8DA]/80 text-[10px] uppercase font-sans tracking-widest">
+                      4K Video
+                    </span>
                   </div>
                 </div>
 

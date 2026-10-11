@@ -13,6 +13,7 @@ import {
   FilePlus,
 } from 'lucide-react';
 import { Button } from '@/components/Button';
+import { formatCategoryLabel, STANDARD_CATEGORY_NAMES } from '@/lib/categories';
 
 export interface UploadQueueItem {
   id: string;
@@ -20,6 +21,7 @@ export interface UploadQueueItem {
   name: string;
   size: number;
   type: 'photo' | 'video';
+  category: string;
   progress: number;
   status: 'queued' | 'requesting_url' | 'uploading' | 'saving' | 'completed' | 'error';
   errorMessage?: string;
@@ -46,7 +48,46 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
 }) => {
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [targetCategory, setTargetCategory] = useState<string>('mariage');
+  const [availableCategories, setAvailableCategories] = useState<Array<{ slug: string; name: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load custom categories from server if configured
+  React.useEffect(() => {
+    fetch('/api/admin/work-categories')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.categories && Array.isArray(data.categories)) {
+          setAvailableCategories(data.categories);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Compute celebration category choices
+  const categoryOptions = React.useMemo(() => {
+    const list: Array<{ slug: string; label: string }> = [
+      { slug: 'mariage', label: 'Mariage (Wedding Day)' },
+      { slug: 'wteya', label: 'Wteya / Outia' },
+      { slug: 'henna-arousa', label: 'Henna Arousa' },
+      { slug: 'henna-arous', label: 'Henna Arous' },
+      { slug: 'hammem', label: 'Hammem' },
+      { slug: 'thour', label: 'Thour' },
+      { slug: 'teaser', label: 'Teaser' },
+      { slug: 'reels', label: 'Reels' },
+      { slug: 'films', label: 'Films' },
+      { slug: 'ceremony', label: 'Ceremony' },
+      { slug: 'getting-ready', label: 'Getting Ready' },
+    ];
+
+    availableCategories.forEach((ac) => {
+      if (!list.some((item) => item.slug === ac.slug)) {
+        list.push({ slug: ac.slug, label: ac.name });
+      }
+    });
+
+    return list;
+  }, [availableCategories]);
 
   // Auto-detect type
   const detectMediaType = (file: File): 'photo' | 'video' => {
@@ -225,7 +266,7 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
                 r2Key,
                 thumbnailR2Key,
                 type: mediaType,
-                category: mediaType === 'video' ? 'films' : 'photography',
+                category: item.category || targetCategory || (mediaType === 'video' ? 'films' : 'mariage'),
                 isPublicPortfolio: false,
               }),
             });
@@ -318,6 +359,7 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
       name: file.name,
       size: file.size,
       type: detectMediaType(file),
+      category: targetCategory,
       progress: 0,
       status: 'queued',
     }));
@@ -381,6 +423,35 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
 
   return (
     <div className="space-y-4 text-left">
+      {/* 0. Celebration Category Selector */}
+      <div className="p-3 sm:p-4 bg-[#131918] border border-white/[0.08] rounded-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-sans">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <label htmlFor="bulk-target-category" className="text-[#9EABA2] font-medium shrink-0">
+            Target Celebration:
+          </label>
+          <select
+            id="bulk-target-category"
+            value={targetCategory}
+            onChange={(e) => setTargetCategory(e.target.value)}
+            className="bg-[#182220] border border-teal/40 rounded-xs px-3 py-1.5 text-xs text-teal font-semibold focus:outline-none focus:border-teal cursor-pointer shadow-sm"
+          >
+            {categoryOptions.map((cat) => (
+              <option key={cat.slug} value={cat.slug}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <p className="text-[11px] text-[#9EABA2]">
+          All files dropped below will be registered under{' '}
+          <span className="text-teal font-semibold">
+            {formatCategoryLabel(targetCategory, availableCategories)}
+          </span>
+          .
+        </p>
+      </div>
+
       {/* 1. Drag & Drop Zone */}
       <div
         onDragOver={handleDragOver}
@@ -475,6 +546,9 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
                     </span>
                     <span className="text-[10px] text-[#9EABA2]/70 font-mono shrink-0">
                       ({formatBytes(item.size)})
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded-2xs bg-teal/15 text-teal text-[9px] font-mono uppercase tracking-wider border border-teal/20 shrink-0">
+                      {item.category || targetCategory}
                     </span>
                   </div>
 
