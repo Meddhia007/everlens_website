@@ -24,6 +24,8 @@ export interface PortalMediaItem {
   type: 'photo' | 'video';
   category: string;
   url?: string | null;
+  thumbnailUrl?: string | null;
+  downloadUrl?: string | null;
   aspectRatio?: string;
   isPrintSelected?: boolean;
   printNote?: string;

@@ -281,11 +281,12 @@ export const PortfolioSection: React.FC<PortfolioSectionProps> = ({ onOpenLightb
                   {isMediaVideo ? (
                     <video
                       src={mediaUrl}
+                      poster={post.coverImage && !post.coverImage.includes('.mp4') ? post.coverImage : undefined}
                       muted
                       autoPlay
                       loop
                       playsInline
-                      preload="metadata"
+                      preload="none"
                       className={clsx(
                         'w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none',
                         isBlurredDesktop

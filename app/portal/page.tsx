@@ -111,15 +111,26 @@ export default async function ClientPortalPage() {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Attach signed thumbnail/view URLs for the grid
+    // Attach web-optimized preview URLs for photos and signed streaming URLs for videos
     mediaList = await Promise.all(
       rawItems.map(async (item) => {
         let viewUrl: string | null = null;
-        try {
-          // Generate signed view URL from R2 (1 hour expiry)
-          viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
-        } catch {
-          viewUrl = null;
+        let thumbnailUrl: string | null = null;
+
+        if (item.type === 'photo') {
+          // Optimized WebP preview for display (1600px width, ~180KB instead of 25MB)
+          viewUrl = `/api/media/preview?id=${item._id}&w=1600`;
+          thumbnailUrl = `/api/media/preview?id=${item._id}&w=800`;
+        } else {
+          // Video: stream URL for playback in lightbox
+          try {
+            viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
+          } catch {
+            viewUrl = null;
+          }
+          if (item.thumbnailR2Key) {
+            thumbnailUrl = `/api/media/preview?id=${item._id}&w=800`;
+          }
         }
 
         const isSelected =
@@ -133,6 +144,8 @@ export default async function ClientPortalPage() {
           type: item.type,
           category: item.category,
           url: viewUrl,
+          thumbnailUrl,
+          downloadUrl: `/api/portal/media/${item._id}/download`,
           isPrintSelected: isSelected,
           printNote: item.printNote || '',
         };

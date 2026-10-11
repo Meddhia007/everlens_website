@@ -7,6 +7,7 @@ import {
   Film,
   Trash2,
   ExternalLink,
+  Download,
   Check,
   AlertCircle,
   Filter,
@@ -23,6 +24,8 @@ export interface MediaItemData {
   isPrintSelected?: boolean;
   printNote?: string;
   url?: string | null;
+  thumbnailUrl?: string | null;
+  downloadUrl?: string | null;
   createdAt?: string;
 }
 
@@ -161,12 +164,26 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
               {/* Media Thumbnail / Preview */}
               <div className="relative aspect-4/3 bg-[#0B0F0E] overflow-hidden flex items-center justify-center border-b border-white/[0.08]">
                 {item.type === 'video' ? (
-                  <div className="flex flex-col items-center justify-center text-teal space-y-1">
-                    <Film className="w-8 h-8" />
-                    <span className="text-[10px] uppercase font-mono tracking-wider font-semibold text-teal">
-                      Film Master
-                    </span>
-                  </div>
+                  item.thumbnailUrl ? (
+                    <div className="relative w-full h-full">
+                      <img
+                        src={item.thumbnailUrl}
+                        alt={item.originalFilename}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <Film className="w-6 h-6 text-teal" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-teal space-y-1">
+                      <Film className="w-8 h-8" />
+                      <span className="text-[10px] uppercase font-mono tracking-wider font-semibold text-teal">
+                        Film Master
+                      </span>
+                    </div>
+                  )
                 ) : item.url ? (
                   <img
                     src={item.url}
@@ -208,15 +225,15 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
                   >
                     {item.originalFilename}
                   </span>
-                  {item.url && (
+                  {(item.downloadUrl || item.url) && (
                     <a
-                      href={item.url}
+                      href={item.downloadUrl || item.url || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-white/40 hover:text-white shrink-0 transition-colors"
-                      title="Open asset direct link"
+                      title="Download full quality master file"
                     >
-                      <ExternalLink className="w-3 h-3" />
+                      <Download className="w-3 h-3" />
                     </a>
                   )}
                 </div>

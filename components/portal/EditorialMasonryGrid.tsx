@@ -130,11 +130,18 @@ export const EditorialMasonryGrid: React.FC<EditorialMasonryGridProps> = ({
               {item.type === 'video' ? (
                 /* Film item */
                 <div className="w-full h-full bg-[#162925] flex items-center justify-center relative">
-                  {item.url ? (
+                  {item.thumbnailUrl ? (
+                    <img
+                      src={item.thumbnailUrl}
+                      alt={item.originalFilename}
+                      loading="lazy"
+                      className="w-full h-full object-cover opacity-80"
+                    />
+                  ) : item.url ? (
                     <video
                       src={item.url}
                       className="w-full h-full object-cover opacity-75 pointer-events-none"
-                      preload="metadata"
+                      preload="none"
                     />
                   ) : null}
 

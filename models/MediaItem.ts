@@ -16,6 +16,8 @@ export interface IMediaItem extends Document {
   galleryId: Types.ObjectId;
   originalFilename: string;
   r2Key: string;
+  previewR2Key?: string;
+  thumbnailR2Key?: string;
   type: MediaType;
   category: MediaCategory;
   isPublicPortfolio: boolean;
@@ -45,6 +47,14 @@ const MediaItemSchema = new Schema<IMediaItem>(
     r2Key: {
       type: String,
       required: [true, 'R2 key is required'],
+      trim: true,
+    },
+    previewR2Key: {
+      type: String,
+      trim: true,
+    },
+    thumbnailR2Key: {
+      type: String,
       trim: true,
     },
     type: {

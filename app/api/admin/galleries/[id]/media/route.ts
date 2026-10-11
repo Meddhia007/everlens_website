@@ -35,16 +35,24 @@ export async function GET(
       .sort({ createdAt: -1 })
       .lean();
 
-    // Attach signed view URLs for grid preview
+    // Attach preview URLs for grid preview
     const enrichedItems = await Promise.all(
       items.map(async (item) => {
         let viewUrl: string | null = null;
-        try {
-          // Generate 1-hour presigned view URL directly from R2
-          viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
-        } catch {
-          // If R2 credentials are dummy/offline, viewUrl remains null
-          viewUrl = null;
+        let thumbnailUrl: string | null = null;
+
+        if (item.type === 'photo') {
+          viewUrl = `/api/media/preview?id=${item._id}&w=1600`;
+          thumbnailUrl = `/api/media/preview?id=${item._id}&w=800`;
+        } else {
+          try {
+            viewUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
+          } catch {
+            viewUrl = null;
+          }
+          if (item.thumbnailR2Key) {
+            thumbnailUrl = `/api/media/preview?id=${item._id}&w=800`;
+          }
         }
 
         return {
@@ -52,6 +60,8 @@ export async function GET(
           _id: item._id.toString(),
           galleryId: item.galleryId.toString(),
           url: viewUrl,
+          thumbnailUrl,
+          downloadUrl: `/api/portal/media/${item._id}/download`,
         };
       })
     );
@@ -87,6 +97,8 @@ export async function POST(
     const {
       originalFilename,
       r2Key,
+      thumbnailR2Key,
+      previewR2Key,
       type = 'photo',
       category = type === 'video' ? 'films' : 'photography',
       isPublicPortfolio = false,
@@ -121,6 +133,8 @@ export async function POST(
       galleryId,
       originalFilename: originalFilename.trim(),
       r2Key: r2Key.trim(),
+      thumbnailR2Key: thumbnailR2Key ? thumbnailR2Key.trim() : undefined,
+      previewR2Key: previewR2Key ? previewR2Key.trim() : undefined,
       type,
       category,
       isPublicPortfolio: Boolean(isPublicPortfolio),
@@ -128,12 +142,22 @@ export async function POST(
       printNote,
     });
 
-    // Generate signed view URL
+    // Generate view URL (optimized preview for photos, stream URL for videos)
     let viewUrl: string | null = null;
-    try {
-      viewUrl = await getPresignedDownloadUrl(mediaItem.r2Key, 3600);
-    } catch {
-      viewUrl = null;
+    let thumbnailUrl: string | null = null;
+
+    if (type === 'photo') {
+      viewUrl = `/api/media/preview?id=${mediaItem._id}&w=1600`;
+      thumbnailUrl = `/api/media/preview?id=${mediaItem._id}&w=800`;
+    } else {
+      try {
+        viewUrl = await getPresignedDownloadUrl(mediaItem.r2Key, 3600);
+      } catch {
+        viewUrl = null;
+      }
+      if (mediaItem.thumbnailR2Key) {
+        thumbnailUrl = `/api/media/preview?id=${mediaItem._id}&w=800`;
+      }
     }
 
     return NextResponse.json(
@@ -144,6 +168,8 @@ export async function POST(
           _id: mediaItem._id.toString(),
           galleryId: mediaItem.galleryId.toString(),
           url: viewUrl,
+          thumbnailUrl,
+          downloadUrl: `/api/portal/media/${mediaItem._id}/download`,
         },
       },
       { status: 201 }

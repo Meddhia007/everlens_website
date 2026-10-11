@@ -56,6 +56,60 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
     return 'photo';
   };
 
+  // Extract a lightweight poster frame from video in browser (0.5s - 1.0s)
+  const extractVideoThumbnail = async (file: File): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      try {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.playsInline = true;
+        const objectUrl = URL.createObjectURL(file);
+        video.src = objectUrl;
+
+        video.onloadedmetadata = () => {
+          video.currentTime = Math.min(1.0, (video.duration || 2) / 2);
+        };
+
+        video.onseeked = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const maxDim = 1280;
+            const w = video.videoWidth || 1280;
+            const h = video.videoHeight || 720;
+            const scale = Math.min(1, maxDim / Math.max(w, h));
+            canvas.width = Math.round(w * scale);
+            canvas.height = Math.round(h * scale);
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              canvas.toBlob(
+                (blob) => {
+                  URL.revokeObjectURL(objectUrl);
+                  resolve(blob);
+                },
+                'image/jpeg',
+                0.82
+              );
+              return;
+            }
+          } catch {
+            // fallback
+          }
+          URL.revokeObjectURL(objectUrl);
+          resolve(null);
+        };
+
+        video.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(null);
+        };
+      } catch {
+        resolve(null);
+      }
+    });
+  };
+
   // Perform direct-to-R2 upload using XMLHttpRequest
   const startFileUpload = useCallback(
     async (item: UploadQueueItem) => {
@@ -125,7 +179,39 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
 
       xhr.onload = async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          // 3. Register MediaItem in MongoDB
+          // 3. Extract and upload video poster if video
+          let thumbnailR2Key: string | undefined = undefined;
+          if (mediaType === 'video') {
+            try {
+              const thumbBlob = await extractVideoThumbnail(item.file);
+              if (thumbBlob) {
+                const thumbPresignRes = await fetch(`/api/admin/galleries/${galleryId}/media/presigned`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    filename: `${item.name.replace(/\.[^/.]+$/, '')}.thumb.jpg`,
+                    contentType: 'image/jpeg',
+                    fileSize: thumbBlob.size,
+                  }),
+                });
+                if (thumbPresignRes.ok) {
+                  const thumbData = await thumbPresignRes.json();
+                  if (thumbData.uploadUrl) {
+                    await fetch(thumbData.uploadUrl, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'image/jpeg' },
+                      body: thumbBlob,
+                    });
+                    thumbnailR2Key = thumbData.r2Key;
+                  }
+                }
+              }
+            } catch (thumbErr) {
+              console.warn('Video thumbnail generation skipped:', thumbErr);
+            }
+          }
+
+          // 4. Register MediaItem in MongoDB
           setQueue((prev) =>
             prev.map((q) => (q.id === item.id ? { ...q, status: 'saving', progress: 95 } : q))
           );
@@ -137,6 +223,7 @@ export const BulkUploader: React.FC<BulkUploaderProps> = ({
               body: JSON.stringify({
                 originalFilename: item.name,
                 r2Key,
+                thumbnailR2Key,
                 type: mediaType,
                 category: mediaType === 'video' ? 'films' : 'photography',
                 isPublicPortfolio: false,

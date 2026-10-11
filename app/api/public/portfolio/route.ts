@@ -46,12 +46,24 @@ export async function GET(request: NextRequest) {
 
       const publicMediaPosts = await Promise.all(
         publicMedia.map(async (item: any) => {
+          const isVid = item.type === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(item.originalFilename);
           let mediaUrl = '';
-          try {
-            // Short-lived signed URL for public portfolio viewing (1 hour expiry)
-            mediaUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
-          } catch {
-            mediaUrl = '';
+          let coverImg = '';
+
+          if (isVid) {
+            try {
+              // Video stream URL for player
+              mediaUrl = await getPresignedDownloadUrl(item.r2Key, 3600);
+            } catch {
+              mediaUrl = '';
+            }
+            if (item.thumbnailR2Key) {
+              coverImg = `/api/media/preview?id=${item._id}&w=1200`;
+            }
+          } else {
+            // Optimized WebP preview for fast display (1600px, ~180KB)
+            mediaUrl = `/api/media/preview?id=${item._id}&w=1600`;
+            coverImg = `/api/media/preview?id=${item._id}&w=1200`;
           }
 
           const gallery: any = item.galleryId;
@@ -60,7 +72,6 @@ export async function GET(request: NextRequest) {
             ? new Date(gallery.weddingDate).getFullYear().toString()
             : new Date(item.createdAt || Date.now()).getFullYear().toString();
 
-          const isVid = item.type === 'video' || /\.(mp4|mov|webm|m4v)$/i.test(item.originalFilename);
           const itemCategory = (item.category || (isVid ? 'films' : 'photography')).toLowerCase();
 
           return {
@@ -70,7 +81,7 @@ export async function GET(request: NextRequest) {
             location: gallery?.coupleNames ? 'Tunisia' : 'Everlens Portfolio',
             year: weddingYear,
             category: itemCategory,
-            coverImage: mediaUrl,
+            coverImage: coverImg || mediaUrl,
             videoUrl: isVid ? mediaUrl : '',
             media: [
               {
@@ -95,6 +106,10 @@ export async function GET(request: NextRequest) {
           try {
             if (resolvedCover) {
               resolvedCover = await getPresignedDownloadUrl(resolvedCover, 3600);
+              // Wrap photo in preview optimizer if it's an image
+              if (!resolvedCover.includes('.mp4') && !resolvedCover.includes('.mov')) {
+                resolvedCover = `/api/media/preview?url=${encodeURIComponent(resolvedCover)}&w=1200`;
+              }
             }
           } catch {
             // Keep original
@@ -115,6 +130,9 @@ export async function GET(request: NextRequest) {
               try {
                 if (mUrl) {
                   mUrl = await getPresignedDownloadUrl(mUrl, 3600);
+                  if (m.type === 'photo' && !mUrl.includes('.mp4') && !mUrl.includes('.mov')) {
+                    mUrl = `/api/media/preview?url=${encodeURIComponent(mUrl)}&w=1600`;
+                  }
                 }
               } catch {
                 // Keep original

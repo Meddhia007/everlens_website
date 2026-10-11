@@ -69,11 +69,18 @@ export const PortalVideosView: React.FC<PortalVideosViewProps> = ({
                   onClick={() => onPlayVideo(video, index)}
                   className="relative aspect-[16/9] bg-[#162925] overflow-hidden cursor-pointer flex items-center justify-center"
                 >
-                  {video.url ? (
+                  {video.thumbnailUrl ? (
+                    <img
+                      src={video.thumbnailUrl}
+                      alt={title}
+                      loading="lazy"
+                      className="w-full h-full object-cover opacity-85 group-hover:scale-102 transition-transform duration-500"
+                    />
+                  ) : video.url ? (
                     <video
                       src={video.url}
                       className="w-full h-full object-cover opacity-85 group-hover:scale-102 transition-transform duration-500 pointer-events-none"
-                      preload="metadata"
+                      preload="none"
                     />
                   ) : null}
 

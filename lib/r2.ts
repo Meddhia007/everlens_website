@@ -213,6 +213,64 @@ export async function uploadObjectToR2(
 }
 
 /**
+ * Retrieves the raw buffer of an object from Cloudflare R2 or local mock filesystem.
+ */
+export async function getObjectBufferFromR2(
+  key: string
+): Promise<{ buffer: Buffer; contentType?: string } | null> {
+  const cleanKey = key.replace(/^\/+/, '');
+  if (isMockR2) {
+    const localUploadPath = path.join(process.cwd(), 'public', 'uploads', cleanKey);
+    const directPath = path.join(process.cwd(), 'public', cleanKey);
+    let targetPath: string | null = null;
+    if (fs.existsSync(localUploadPath)) {
+      targetPath = localUploadPath;
+    } else if (fs.existsSync(directPath)) {
+      targetPath = directPath;
+    }
+    if (targetPath) {
+      try {
+        const buffer = await fs.promises.readFile(targetPath);
+        return { buffer, contentType: 'image/jpeg' };
+      } catch {
+        return null;
+      }
+    }
+    // Check if deterministic mock asset matches
+    if (cleanKey.includes('/photos/') || !cleanKey.includes('/films/')) {
+      const sampleAsset = path.join(process.cwd(), 'public', 'portfolio', 'images', 'bridal-veil.jpg');
+      if (fs.existsSync(sampleAsset)) {
+        try {
+          const buffer = await fs.promises.readFile(sampleAsset);
+          return { buffer, contentType: 'image/jpeg' };
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  const bucket = getR2BucketName();
+  try {
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: cleanKey,
+    });
+    const res = await r2Client.send(command);
+    if (!res.Body) return null;
+    const byteArray = await (res.Body as any).transformToByteArray();
+    return {
+      buffer: Buffer.from(byteArray),
+      contentType: res.ContentType,
+    };
+  } catch (err: any) {
+    console.warn(`[R2] getObjectBufferFromR2 failed for key "${cleanKey}":`, err?.message);
+    return null;
+  }
+}
+
+/**
  * Generates a presigned GET URL for viewing or downloading media.
  * In production, streams directly from Cloudflare R2.
  * In development/mock mode, resolves to real local wedding photography/video assets.
